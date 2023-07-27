@@ -1,0 +1,86 @@
+## Reference mapping
+
+```{}
+Somewhat TBD if this belongs in the processing step, it's long but pretty easy
+to run this way so I'd like to have it done prior to the 'analysis' so that
+object is stable. 
+```
+
+### Azimuth
+
+```{}
+Azimuth has lots of dependencies and can be harder to use, you may
+prefer to use singleR instead
+```
+
+```{r}
+objs_filt_mapped <- lapply(objs_filt, 
+                    RunAzimuth,
+                    reference = 'bonemarrowref', ## A seurat/Azimuth reference dataset
+                    umap.name = 'refUMAP.bm')    ## name for reference UMAP added to query data
+for (obj in names(objs_filt_mapped)){
+  DefaultAssay(objs_filt_mapped[[obj]]) <- 'RNA' 
+}
+rm(objs_filt) 
+gc()
+```
+
+#### Plotting mapping results
+
+```{r}
+##devtools::install_github('satijalab/seurat-data')
+bm.ref <- LoadData('bonemarrowref.SeuratData', type = 'azimuth')
+```
+
+```{r, fig.width=15, fig.height=7, warning = FALSE, results='hide', fig.keep='all'}
+
+p1 <- DimPlot(bm.ref$map,
+              reduction = "refUMAP",    ## This will be specific to the reference
+              group.by = "celltype.l2", ## This will be specific to the reference
+              label = TRUE,
+              label.size = 3,
+              raster = FALSE) +
+  NoLegend() + ggtitle("Reference annotations")
+p2 <- DimPlot(objs_filt_mapped$R1,
+              reduction = "refUMAP.bm",           ## umap.name used in RunAzimuth
+              group.by = "predicted.celltype.l2", ## This will be specific to the reference
+              label = TRUE, 
+              label.size = 3, 
+              repel = TRUE) + 
+  NoLegend() + ggtitle("Query transferred labels")
+p1 + p2
+```
+
+### SingleR
+
+```{r}
+## Load a reference dataset in
+ln_ref_data <- SeuratDisk::LoadH5Seurat('/yerkes-cifs/runs/scrna_seq_ref/tabula_sapiens/ts_lymph_downsampled_copy.h5Seurat')
+
+## SingleR can work on merged object, or lapply over captures
+# objs_filt_mapped <- merge(objs_filt_mapped[[1]], objs_filt_mapped[2:length(objs_filt_mapped)])
+singleR_results <- lapply(objs_filt, runSingleR,
+                               ref = ln_ref_data_SingleR,
+                               labels = ln_ref_data_SingleR.labels,
+                               meta.prefix = 'singleR')
+## Output is lists of 2 sets of data: the singleR results, and
+## the seurat objects with metadata added
+for (cap in names(singleR_results)){
+  objs_filt[[cap]] <- singleR_results[[cap]][[1]]
+  singleR_results[[cap]] <- singleR_results[[cap]][[2]]
+}
+```
+
+#### Plotting mapping results
+
+```{r, fig.width=14}
+singleR_heatmap <- plotScoreHeatmap(singleR_results$Cap1)
+singleR_heatmap
+```
+
+### save object post-mapping
+
+```{r}
+saveRDS(objs_filt_mapped, here('saved_rds/objs_filt_mapped.Rds'))
+objs_filt_mapped <- readRDS(here('saved_rds/objs_filt_mapped.Rds'))
+```
