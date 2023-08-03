@@ -291,7 +291,7 @@ obj.cc_check <- filterLowGenes(obj, min.cells = 50, assay = 'RNA', calculate_onl
 obj.cc_check <- ScaleData(obj.cc_check,
                           vars.to.regress = c('S.Score', 'G2M.Score'),
                           features = rownames(obj.cc_check)) %>%
-  FindVariableFeatures(obj.cc_check) %>%
+  FindVariableFeatures() %>%
   RunPCA() %>%
   FindNeighbors(dims = 1:20) %>%
   RunUMAP(dims = 1:20)
