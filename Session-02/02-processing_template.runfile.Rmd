@@ -9,6 +9,7 @@ output: html_document
 library(Seurat)
 library(tidyverse)
 library(here)
+library(clustree)
 library(scDblFinder)
 knitr::opts_chunk$set(echo=FALSE,
                       warning=TRUE,
@@ -84,14 +85,6 @@ obj <- run_scDblFinder(obj)
 ```
 
 ```{r}
-ggplot(obj@meta.data, aes(x=nFeature_RNA, y=nCount_RNA, color=scDblFinder.class)) +
-  geom_point(alpha=0.2) +
-  scale_x_log10() +
-  scale_y_log10() +
-  theme_classic()
-```
-
-```{r}
 obj <- subset(obj, subset = scDblFinder.class == 'singlet')
 qc_receipts$post_doublet_removal <- dim(obj)
 ```
@@ -101,7 +94,9 @@ qc_receipts$post_doublet_removal <- dim(obj)
 ## Set filtering thresholds
 
 Using an outlier detection approach to initialize QC cutoff thresholds. 
-You could also manually specify your filtering thresholds. 
+You could also manually specify your filtering thresholds. Reasonable
+cutoffs depend on the source material and study goals, so tailor
+these as necessary. 
 
 ```{r}
 ## Custom function, see 'R/functions_session-02.R' for more details
@@ -123,7 +118,7 @@ cutoffs$nFeature_RNA.min <- 200
 cutoffs$nCount_RNA.max <- 45000
 ```
 
-Now checking that cells fall within thresholds
+Now adding metadata to identify which cells fall within thresholds
 
 ```{r}
 obj$filtered <- 
@@ -192,6 +187,13 @@ obj <- RunPCA(obj)
 
 ## Identify relevant PCs
 
+```{}
+Don't get too hung up on this: most of the state-of-the-field methods
+are pretty robust to PC selection. The most important point is to 
+include all of the most high-variance PCs.
+```
+
+
 ```{r}
 ElbowPlot(obj, ndims = 30)
 ```
@@ -206,11 +208,16 @@ obj <- FindNeighbors(obj, dims = 1:20)
 obj <- RunUMAP(obj, dims = 1:20)
 ```
 
+```{r}
+DimPlot(obj, group.by = 'orig.ident')
+```
+
+
 ## Selecting clustering resolution
 
 ```{r}
-library(clustree)
-
+## Making a temporary copy of the object so we don't have all this
+## unneeded data in our working object
 clustree_data <- obj
 for (i in seq(0.2,1.4,0.1)){
   clustree_data <- FindClusters(clustree_data, resolution = i, verbose = FALSE)
@@ -233,13 +240,6 @@ DimPlot(obj, label = TRUE)
 
 
 # Capture level metadata clustering
-
-```{}
-This hasn't been super robustly tested, so this might not work out of the box.
-The idea here is to plot metadata such as phase, mito ratio, etc on the 
-capture-level clusters to identify possible problematic groupings of cells
-```
-
 
 ```{r, fig.width=12, fig.height=12}
 FeaturePlot(obj,
@@ -284,7 +284,7 @@ we will focus on the subset of genes present in more than N cells.
 
 ```{r}
 ## Custom function, see 'R/functions_session-02.R' for more details
-obj.cc_check <- filterLowGenes(obj, min.cells = 50, assay = 'RNA', calculate_only = FALSE)
+obj.cc_check <- filterLowGenes(obj, min.cells = 100, assay = 'RNA', calculate_only = FALSE)
 ```
 
 ```{r}
@@ -320,6 +320,6 @@ DimPlot(obj.cc_diff_check, reduction = 'umap', group.by = 'Phase')
 # Save processed object
 
 ```{r}
-saveRDS(obj, here('Data/processed_obj.Rds'))
+saveRDS(obj, here('saved_rds/processed_obj.Rds'))
 ```
 

@@ -1,0 +1,290 @@
+---
+title: "scRNAseq cell annotation"
+author: "Me!"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(Seurat)
+library(tidyverse)
+library(here)
+library(celldex)
+library(SingleR)
+library(DT)
+knitr::opts_chunk$set(echo=FALSE,
+                      warning=TRUE,
+                      message=TRUE,
+                      include=TRUE,
+                      fig.width = 8, fig.height = 8,
+                      fig.align = 'center',
+                      cache=FALSE, cache.lazy = FALSE)
+## Explicitly setting the randomizer seed for reproducibility 
+set.seed(43)
+## Sourcing a small set of custom functions as a separate script to keep this
+## script shorter and more readable
+source(here('R/functions_session-03.R'))
+```
+
+# Load data
+
+```{r}
+obj <- readRDS(here('saved_rds/processed_obj.Rds'))
+
+## Load a reference dataset in
+ref.hpca <- HumanPrimaryCellAtlasData()
+```
+
+```{r}
+DimPlot(obj, label = TRUE)
+```
+
+
+# SingleR on whole dataset
+
+```{r}
+## SingleR uses a different data structure than Seurat
+## Seurat offers functions to switch between them
+obj.sce <- obj %>%
+    Seurat::as.SingleCellExperiment(assay = "RNA") %>%
+    scater::logNormCounts() %>%
+    SummarizedExperiment::assays()
+
+singleR.out <- SingleR(test = obj.sce$logcounts,
+                       ref = ref.hpca,
+                       labels = ref.hpca$label.main,
+                       de.method = 'classic')
+
+obj@meta.data[["singleR.hpca.labels"]] <- singleR.out$labels
+obj@meta.data[["singleR.hpca.pruned.labels"]] <- singleR.out$pruned.labels
+obj@meta.data[["singleR.hpca.delta.next"]] <- singleR.out$delta.next
+```
+
+## Plotting mapping results
+
+```{r, fig.width=12}
+singleR_vln <- SingleR::plotDeltaDistribution(singleR.out, ncol = 10)
+singleR_vln
+```
+
+```{r, fig.width=14}
+singleR_heatmap <- plotScoreHeatmap(singleR.out)
+singleR_heatmap
+```
+
+```{r, fig.width=8, fig.height=6}
+DimPlot(obj, group.by = 'singleR.hpca.pruned.labels', label = TRUE)
+```
+
+```{r}
+DimPlot(obj, label = TRUE)
+```
+
+```{r, fig.height=8, fig.width=10}
+plotRefMapScoresFacet(obj,
+                      label_column = 'singleR.hpca.pruned.labels', 
+                      label_score_column = 'singleR.hpca.delta.next',
+                      clusters_column = 'seurat_clusters',
+                      ncol = 4)
+```
+
+
+# Subsetting T cells
+
+## Reclustering
+
+```{r}
+obj.tcell_sub <- subset(obj, subset = seurat_clusters %in% c(2,4,6,11,12,16,18)) %>%
+  NormalizeData() %>%
+  ScaleData() %>%
+  FindVariableFeatures() %>%
+  RunPCA() %>% 
+  FindNeighbors(dims = 1:20) %>%
+  RunUMAP(dims = 1:20) %>%
+  FindClusters()
+```
+
+```{r}
+DimPlot(obj.tcell_sub, label = TRUE)
+```
+
+## Granular reference predictions
+
+```{r}
+ref.hpca.tcell <- ref.hpca[,ref.hpca$label.main == 'T_cells' | 
+                             ref.hpca$label.main == 'NK_cell']
+
+ref.hpca.tcell <- ref.hpca.tcell[,!c(ref.hpca.tcell$label.fine %in% c('T_cell:CCR10+CLA+1,25(OH)2_vit_D3/IL-12', 'T_cell:CCR10-CLA+1,25(OH)2_vit_D3/IL-12')) ]
+table(ref.hpca.tcell$label.fine)
+```
+
+```{r}
+## SingleR uses a different data structure than Seurat
+## Seurat offers functions to switch between them
+obj.tcell_sub.sce <- obj.tcell_sub %>%
+    Seurat::as.SingleCellExperiment(assay = "RNA") %>%
+    scater::logNormCounts() %>%
+    SummarizedExperiment::assays()
+
+singleR.out.tcells <- SingleR(test = obj.tcell_sub.sce$logcounts,
+                       ref = ref.hpca.tcell,
+                       labels = ref.hpca.tcell$label.fine,
+                       de.method = 'classic')
+
+obj.tcell_sub@meta.data[["singleR.tcell.labels"]] <- singleR.out.tcells$labels
+obj.tcell_sub@meta.data[["singleR.tcell.pruned.labels"]] <- singleR.out.tcells$pruned.labels
+obj.tcell_sub@meta.data[["singleR.tcell.delta.next"]] <- singleR.out.tcells$delta.next
+```
+
+## Plotting mapping results
+
+```{r, fig.width=12}
+SingleR::plotDeltaDistribution(singleR.out.tcells, ncol = 10)
+```
+
+```{r, fig.width=14}
+plotScoreHeatmap(singleR.out.tcells)
+```
+
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.tcell_sub, group.by = 'singleR.tcell.pruned.labels', label = TRUE)
+```
+
+## Plotting marker genes
+
+```{r, fig.height=5, fig.width=14}
+FeaturePlot(obj.tcell_sub,
+            features = c('CD3E', 'CD8A', 'CD4'),
+            ncol = 3)
+```
+
+## Find cluster markers
+
+This can take a while depending on the number of cells and number
+of clusters in your object
+
+```{r}
+cluster_markers <- FindAllMarkers(obj.tcell_sub, min.pct = 0.2)
+```
+
+```{r}
+## Custom function, see 'R/functions_session-03.R' for more details
+all_markers_DT(cluster_markers)
+```
+
+```{r}
+markers_0v1 <- FindMarkers(obj.tcell_sub, ident.1 = 0, ident.2 = 1, min.pct = .2)
+```
+
+```{r}
+## Custom function, see 'R/functions_session-03.R' for more details
+pairwise_marker_DT(markers_0v1)
+```
+
+## Final T cell annotations
+
+```{r}
+cluster_identities <- c(
+  'CD8', #0
+  'CD8',
+  'CD4',
+  'NK',
+  'CD8',
+  'gamma-delta',    #5
+  'CD4'
+)
+obj.tcell_sub$cluster_labels <- plyr::mapvalues(
+  obj.tcell_sub$seurat_clusters, 
+  from = levels(obj.tcell_sub$seurat_clusters),
+  to = cluster_identities
+)
+```
+
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.tcell_sub, group.by = 'cluster_labels', label = TRUE)
+```
+
+Add these back to the main object
+
+```{r}
+# Intialize empty metadata column
+obj$tcell_annotations <- NA
+# Populate it for the T cells
+obj$tcell_annotations[colnames(obj.tcell_sub)] <- as.character(obj.tcell_sub$cluster_labels)
+
+```
+
+
+# Subsetting monocytes
+
+## Reclustering
+
+```{r}
+obj.mono_sub <- subset(obj, subset = seurat_clusters %in% c(7,10)) %>%
+  NormalizeData() %>%
+  ScaleData() %>%
+  FindVariableFeatures() %>%
+  RunPCA() %>% 
+  FindNeighbors(dims = 1:20) %>%
+  RunUMAP(dims = 1:20) %>%
+  FindClusters(resolution = 0.3)
+```
+
+```{r}
+DimPlot(obj.mono_sub, label = TRUE)
+```
+
+## Granular reference predictions
+
+```{r}
+ref.mon <- MonacoImmuneData() 
+ref.mon <- ref.mon[,ref.mon$label.main == 'Monocytes']
+table(ref.mon$label.fine)
+```
+
+```{r}
+## SingleR uses a different data structure than Seurat
+## Seurat offers functions to switch between them
+obj.mono_sub.sce <- obj.mono_sub %>%
+    Seurat::as.SingleCellExperiment(assay = "RNA") %>%
+    scater::logNormCounts() %>%
+    SummarizedExperiment::assays()
+
+singleR.out.mono <- SingleR(test = obj.mono_sub.sce$logcounts,
+                       ref = ref.mon,
+                       labels = ref.mon$label.fine,
+                       de.method = 'classic')
+
+obj.mono_sub@meta.data[["singleR.mono.labels"]] <- singleR.out.mono$labels
+obj.mono_sub@meta.data[["singleR.mono.pruned.labels"]] <- singleR.out.mono$pruned.labels
+obj.mono_sub@meta.data[["singleR.mono.delta.next"]] <- singleR.out.mono$delta.next
+```
+
+## Plotting prediction results
+
+```{r, fig.width=12}
+SingleR::plotDeltaDistribution(singleR.out.mono, ncol = 10)
+```
+
+```{r, fig.width=14}
+plotScoreHeatmap(singleR.out.mono)
+```
+
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.mono_sub, group.by = 'singleR.mono.pruned.labels', label = TRUE)
+```
+
+```{r}
+plotRefMapScoresFacet(obj.mono_sub,
+                      label_column = 'singleR.mono.pruned.labels', 
+                      label_score_column = 'singleR.mono.delta.next',
+                      clusters_column = 'seurat_clusters',
+                      ncol = 4)
+```
+
+
+### save object post-mapping
+
+```{r}
+saveRDS(obj, here('saved_rds/03-annotated_obj.Rds'))
+```
