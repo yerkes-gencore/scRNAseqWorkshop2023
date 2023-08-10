@@ -23,7 +23,7 @@ knitr::opts_chunk$set(echo=FALSE,
 set.seed(43)
 ## Sourcing a small set of custom functions as a separate script to keep this
 ## script shorter and more readable
-source(here('R/functions_session-03.R'))
+source(here('Session-03/functions_session-03.R'))
 ```
 
 # Load data
