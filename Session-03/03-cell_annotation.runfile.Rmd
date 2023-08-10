@@ -108,6 +108,12 @@ obj.tcell_sub <- subset(obj, subset = seurat_clusters %in% c(2,4,6,11,12,16,18))
 DimPlot(obj.tcell_sub, label = TRUE)
 ```
 
+```{r}
+obj.tcell_sub <- FindSubCluster(obj.tcell_sub, cluster = 2, resolution = 0.5, graph.name = 'RNA_nn')
+DimPlot(obj.tcell_sub, group.by = 'sub.cluster', label = TRUE)
+```
+
+
 ## Granular reference predictions
 
 ```{r}
@@ -211,7 +217,6 @@ Add these back to the main object
 obj$tcell_annotations <- NA
 # Populate it for the T cells
 obj$tcell_annotations[colnames(obj.tcell_sub)] <- as.character(obj.tcell_sub$cluster_labels)
-
 ```
 
 
@@ -219,15 +224,15 @@ obj$tcell_annotations[colnames(obj.tcell_sub)] <- as.character(obj.tcell_sub$clu
 
 ## Reclustering
 
-```{r}
-obj.mono_sub <- subset(obj, subset = seurat_clusters %in% c(7,10)) %>%
-  NormalizeData() %>%
-  ScaleData() %>%
-  FindVariableFeatures() %>%
-  RunPCA() %>% 
-  FindNeighbors(dims = 1:20) %>%
-  RunUMAP(dims = 1:20) %>%
-  FindClusters(resolution = 0.3)
+```{r, message=FALSE}
+obj.mono_sub <- subset(obj, subset = seurat_clusters %in% c(7,10,17)) %>%
+  NormalizeData(verbose = FALSE) %>%
+  ScaleData(verbose = FALSE) %>%
+  FindVariableFeatures(verbose = FALSE) %>%
+  RunPCA(verbose = FALSE) %>% 
+  FindNeighbors(dims = 1:20, verbose = FALSE) %>%
+  RunUMAP(dims = 1:20, verbose = FALSE) %>%
+  FindClusters(resolution = 1, verbose = FALSE)
 ```
 
 ```{r}
@@ -238,7 +243,7 @@ DimPlot(obj.mono_sub, label = TRUE)
 
 ```{r}
 ref.mon <- MonacoImmuneData() 
-ref.mon <- ref.mon[,ref.mon$label.main == 'Monocytes']
+ref.mon <- ref.mon[,ref.mon$label.main == 'Monocytes' | ref.mon$label.main == 'Dendritic cells']
 table(ref.mon$label.fine)
 ```
 
@@ -255,6 +260,8 @@ singleR.out.mono <- SingleR(test = obj.mono_sub.sce$logcounts,
                        labels = ref.mon$label.fine,
                        de.method = 'classic')
 
+rm(obj.mono_sub.sce)
+
 obj.mono_sub@meta.data[["singleR.mono.labels"]] <- singleR.out.mono$labels
 obj.mono_sub@meta.data[["singleR.mono.pruned.labels"]] <- singleR.out.mono$pruned.labels
 obj.mono_sub@meta.data[["singleR.mono.delta.next"]] <- singleR.out.mono$delta.next
@@ -270,7 +277,7 @@ SingleR::plotDeltaDistribution(singleR.out.mono, ncol = 10)
 plotScoreHeatmap(singleR.out.mono)
 ```
 
-```{r, fig.width=10, fig.height=8}
+```{r, fig.width=6, fig.height=4}
 DimPlot(obj.mono_sub, group.by = 'singleR.mono.pruned.labels', label = TRUE)
 ```
 
@@ -282,8 +289,78 @@ plotRefMapScoresFacet(obj.mono_sub,
                       ncol = 4)
 ```
 
+## Final monocyte/DC annotations
 
-### save object post-mapping
+```{r}
+cluster_identities <- c(
+  'Monocytes', #0
+  'Monocytes',
+  'Mixed monocytes/DC',
+  'DC',
+  'DC'         #5
+)
+obj.mono_sub$cluster_labels <- plyr::mapvalues(
+  obj.mono_sub$seurat_clusters, 
+  from = levels(obj.mono_sub$seurat_clusters),
+  to = cluster_identities
+)
+```
+
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.mono_sub, group.by = 'cluster_labels', label = TRUE)
+```
+
+Add these back to the main object
+
+```{r}
+# Intialize empty metadata column
+obj$monocyte_annotations <- NA
+# Populate it for the T cells
+obj$monocyte_annotations[colnames(obj.mono_sub)] <- as.character(obj.mono_sub$cluster_labels)
+```
+
+# Final annotations
+
+```{r}
+cluster_identities <- c(
+  'Macrophages', #0
+  'Macrophages',
+  'Tcells',
+  'Macrophages',
+  'Tcells',
+  'Macrophages',
+  'Tcells',
+  'Monocytes',
+  'Macrophages',
+  'Epithelial',
+  'Monocytes',  #10
+  'NK',
+  'Tcells',
+  'Mixed/unknown 1',
+  'Epithelial',
+  'Bcells',
+  'Tcells',
+  'DC',
+  'Tcells',
+  'Mixed/unknown 2'
+)
+obj$celltype_annotations <- as.character(plyr::mapvalues(
+  obj$seurat_clusters, 
+  from = levels(obj$seurat_clusters),
+  to = cluster_identities
+))
+
+obj$celltype_annotations[!is.na(obj$tcell_annotations)] <- as.character(obj$tcell_annotations[!is.na(obj$tcell_annotations)])
+obj$celltype_annotations[!is.na(obj$monocyte_annotations)] <- as.character(obj$monocyte_annotations[!is.na(obj$monocyte_annotations)])
+```
+
+```{r, fig.height=6, fig.width=7}
+DimPlot(obj, group.by = 'celltype_annotations', label = TRUE)
+```
+
+
+
+# save object post-mapping
 
 ```{r}
 saveRDS(obj, here('saved_rds/03-annotated_obj.Rds'))
