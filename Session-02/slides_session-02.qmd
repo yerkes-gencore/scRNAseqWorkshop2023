@@ -105,18 +105,34 @@ Additional, manual filtering performed in Seurat on a per-capture basis
 
 ------------------------------------------------------------------------
 
-### QC metrics {.smaller}
+### QC metrics
 
-Mitochondrial gene expression
+::: columns
+::: {.column width="70%"}
+#### Mitochondrial gene expression
 
--   High proportion of MT gene expression indicates unhealthy cells, not a good representation of normal cell state
+High proportion of MT gene expression indicates unhealthy cells, not a good representation of normal cell state
 
-Number of unique reads
+Some studies expect high MT expression (e.g. tumor biopsies)
+:::
+
+::: {.column width="30%"}
+![](assets/mt_vln.png){width="75%"}
+:::
+:::
+
+------------------------------------------------------------------------
+
+#### Number of unique reads
 
 -   Low \# of reads may not capture all cell activities
 -   High \# of reads may suggest multiple cells in a single GEM (multiplets)
 
-Number of unique genes/features
+![](assets/umi_vln.png)
+
+------------------------------------------------------------------------
+
+#### Number of unique genes/features
 
 -   Considered with \# of reads as a proxy for cell complexity
 -   Cells with many features may need greater sequencing depth
@@ -124,7 +140,13 @@ Number of unique genes/features
 
 ------------------------------------------------------------------------
 
-### Knowledge of organism, tissue, and desired cell-types are key
+#### Number of unique genes/features
+
+![](assets/features_complexity_ridges.png){fig-align="center" width="100%"}
+
+------------------------------------------------------------------------
+
+## Knowledge of organism, tissue, and desired cell-types are key {.smaller}
 
 -   Quiescent populations may have higher \# of unique features
 
@@ -138,6 +160,8 @@ You shouldn't just apply general filtering thresholds to every study
 
 Do you value putative detection of subtle signals, or high-confidence analyses?
 
+<!-- Examples Neutrophils in lung data removed by stricter QC -->
+
 ------------------------------------------------------------------------
 
 ### Outlier detection approach
@@ -146,33 +170,41 @@ A good starting point can be to filter outliers from your data
 
 Median absolute deviation (MAD) outlier detection: exclude values beyond *n* MADs
 
-$$
-MAD = median(|X_i - median(X)|)
-$$
+$$MAD = median(|X_i - median(X)|)$$
 
-Increasing the allowed number of MADs reduces the stringency. A general cutoff used by developers of the scater [^1] package is 4 MADs.
+Increasing the allowed number of MADs reduces the stringency. A general cutoff used by developers of the scater^1^ package is 4 MADs.
 
-[^1]: [Single-Cell Analysis Toolkit for Gene Expression Data in R](https://bioconductor.org/packages/release/bioc/html/scater.html)
+::: footer
+[1. Single-Cell Analysis Toolkit for Gene Expression Data in R](https://bioconductor.org/packages/release/bioc/html/scater.html)
+:::
 
 ## Doublets
 
 ![](assets/gem-errors.png) Two cells that share the same barcode Reads cannot be separated
 
-<footer>[1](https://www.cs.hhu.de/fileadmin/redaktion/Fakultaeten/Mathematisch-Naturwissenschaftliche_Fakultaet/Informatik/Algorithmische_Bioinformatik/Bachelor-_Masterarbeiten/2576888_ba_ifo_AbschlArbeit_klau_lautwein_pamei104_20210509_0918.pdf)</footer>
+::: footer
+[Fig. 1](https://www.cs.hhu.de/fileadmin/redaktion/Fakultaeten/Mathematisch-Naturwissenschaftliche_Fakultaet/Informatik/Algorithmische_Bioinformatik/Bachelor-_Masterarbeiten/2576888_ba_ifo_AbschlArbeit_klau_lautwein_pamei104_20210509_0918.pdf)
+:::
 
 ------------------------------------------------------------------------
 
-Tools for removing doublets
+### Doublets
+
+Difficult to identify due to biological and technical variability
+
+In b cells, removing cells with 2 heavy chains
+
+Imperfect detection algorithms: you should expect to lose some 'real' signal
+
+UMAP of doublets, overlay of markers from multiple cells
+
+------------------------------------------------------------------------
+
+### Tools for removing doublets
 
 [DoubletFinder](https://github.com/chris-mcginnis-ucsf/DoubletFinder)
 
 [scDblFinder](https://github.com/plger/scDblFinder)
-
-------------------------------------------------------------------------
-
-Difficult to identify due to biological and technical variability
-
-Imperfect detection algorithms: you should expect to lose some 'real' signal, but it can also improve the power of your data
 
 ## Ambient RNA
 
@@ -184,17 +216,21 @@ Falsely attribute expression to a cell
 
 ![](assets/ambient-RNA.png)
 
+::: footer
+
 [Introduction to Ambient RNA Correction - 10x genomics](https://www.10xgenomics.com/resources/analysis-guides/introduction-to-ambient-rna-correction)
 
-***
+:::
+
+------------------------------------------------------------------------
 
 ### Tools for ambient RNA correction
 
-<smaller>*We will not be doing correction as part of the workshop*</smaller>
+*We will not be doing correction as part of the workshop*
 
 Different methods require different inputs, preprocessing steps, etc.
 
-[SoupX](https://github.com/constantAmateur/SoupX)
+[SoupX](https://github.com/constantAmateur/SoupX) - popular correction tool
 
 See more tools in the 10x vignette
 
@@ -202,20 +238,140 @@ See more tools in the 10x vignette
 
 # Normalizing and scaling data
 
+***
+
+### Normalizing and scaling data
+
 Standardize transcript counts as fraction of total cell expression
+
+Log-transform
 
 Scale to mean = 0
 
-Identify high-variance features for dimensional reduction
+------------------------------------------------------------------------
+
+### Normalizing and scaling data
+
+::: columns
+::: {.column width="50%"}
+Before
+![](assets/prenormalized.png)
+:::
+
+::: {.column width="50%"}
+After
+![](assets/postnormalized.png)
+:::
+:::
+
+------------------------------------------------------------------------
 
 ## Normalization techniques {.smaller}
 
-`Seurat::NormalizeData()`
-By default, we employ a global-scaling normalization method “LogNormalize” that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result
+`Seurat::NormalizeData()`: "By default, we employ a global-scaling normalization method that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result"
 
-`Seurat::SCTransform()`
-Tailored to the variance and dropout observed in single-cell data
+`Seurat::SCTransform()`: Tailored to the variance and dropout observed in single-cell data, but still somewhat new and up for debate
 
+Some newer Seurat vignettes will use SCTransform, but many other tools and techniques use classic log normalization. We use `NormalizeData` in the workshop
 
+# Dimensional reduction
 
+## Highly variable features {.smaller}
 
+Datasets include 10,000+ genes, but most aren't relevant to the study/system
+
+Focus on genes with high variability between samples
+
+`Seurat::FindVariableFeatures` handles this in one step
+
+## Principle Component Analysis {.smaller}
+
+Finding vectors that capture the most variable genes between samples
+
+Highest PCs account for the most variance in the dataset
+
+Additional resources
+
+-   [StatQuest](https://www.youtube.com/watch?v=_UVHneBUBW0)
+
+-   [HBC](https://hbctraining.github.io/scRNA-seq/lessons/05_normalization_and_PCA.html)
+
+------------------------------------------------------------------------
+
+![](assets/pca_2.png)
+
+::: footer
+[Fig. 1](https://hbctraining.github.io/scRNA-seq/lessons/05_normalization_and_PCA.html)
+:::
+
+------------------------------------------------------------------------
+
+For a given sample with *m* genes, a score for PC *n* can be calculated by: $$PCscore_n = \sum_{k=1}^m (readcount_k * influence_k)$$
+
+------------------------------------------------------------------------
+
+![](assets/pca_3.png)
+
+::: footer
+[Fig. 1](https://hbctraining.github.io/scRNA-seq/lessons/05_normalization_and_PCA.html)
+:::
+
+# Visualizing data in reduced dimensions
+
+------------------------------------------------------------------------
+
+-   Two PCs are usually insufficient to represent SC datasets
+
+-   Additional techniques optimize the 2d representation of high-dim data
+
+    -   Take PCs as input rather than genes
+
+## High variance PCs {.smaller}
+
+-   Jackstraw - Bootstrapping approach to determine significant PCs
+
+    -   More rigorous but computationally intense
+
+-   ElbowPlot - Quick heuristic to approximate significant PCs
+
+    -   Usually sufficient, downstream tools are robust to PC selection
+
+![](assets/elbowplot.png){width="200%"}
+
+## 2D visualization algorithms {.smaller}
+
+-   [tSNE](https://en.wikipedia.org/wiki/T-distributed_stochastic_neighbor_embedding) - t-distributed stochastic neighbor embedding
+
+    -   Older but still used
+
+-   [UMAP](https://umap-learn.readthedocs.io/en/latest/) - Uniform Manifold Approximation and Projection for Dimension Reduction
+
+    -   Preserves global structure better than tSNE
+
+![](assets/tsne_v_umap.png){width="120%"} tSNE left, UMAP right. 
+
+::: footer 
+[Fig. 1](https://blog.bioturing.com/2022/01/14/umap-vs-t-sne-single-cell-rna-seq-data-visualization/) 
+:::
+
+# Seurat objects {.smaller}
+
+::: columns
+::: {.column width="50%"}
+Assays hold cell + gene/feature level data
+
+-   Raw counts, normalized counts, etc.
+
+Metadata / colData holds cell level data
+
+-   Sample info (capture, condition), computed metrics (MT proportion, nFeature)
+
+Reductions hold cell level values for dimensional reductions
+
+-   PCA, UMAP
+:::
+
+::: {.column width="50%"}
+![](assets/seurat_obj.png)
+:::
+:::

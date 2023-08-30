@@ -442,17 +442,29 @@
 </section>
 <section class="slide level2">
 
-<h3 class="smaller" id="qc-metrics">QC metrics</h3>
-<p>Mitochondrial gene expression</p>
-<ul>
-<li>High proportion of MT gene expression indicates unhealthy cells, not a good representation of normal cell state</li>
-</ul>
-<p>Number of unique reads</p>
+<h3 id="qc-metrics">QC metrics</h3>
+<div class="columns">
+<div class="column" style="width:70%;">
+<h4 id="mitochondrial-gene-expression">Mitochondrial gene expression</h4>
+<p>High proportion of MT gene expression indicates unhealthy cells, not a good representation of normal cell state</p>
+<p>Some studies expect high MT expression (e.g.&nbsp;tumor biopsies)</p>
+</div><div class="column" style="width:30%;">
+<p><img data-src="assets/mt_vln.png" style="width:75.0%"></p>
+</div>
+</div>
+</section>
+<section class="slide level2">
+
+<h4 id="number-of-unique-reads">Number of unique reads</h4>
 <ul>
 <li>Low # of reads may not capture all cell activities</li>
 <li>High # of reads may suggest multiple cells in a single GEM (multiplets)</li>
 </ul>
-<p>Number of unique genes/features</p>
+
+<img data-src="assets/umi_vln.png" class="r-stretch"></section>
+<section class="slide level2">
+
+<h4 id="number-of-unique-genesfeatures">Number of unique genes/features</h4>
 <ul>
 <li>Considered with # of reads as a proxy for cell complexity</li>
 <li>Cells with many features may need greater sequencing depth</li>
@@ -461,7 +473,11 @@
 </section>
 <section class="slide level2">
 
-<h3 id="knowledge-of-organism-tissue-and-desired-cell-types-are-key">Knowledge of organism, tissue, and desired cell-types are key</h3>
+<h4 id="number-of-unique-genesfeatures-1">Number of unique genes/features</h4>
+
+<img data-src="assets/features_complexity_ridges.png" style="width:100.0%" class="r-stretch quarto-figure-center"></section>
+<section id="knowledge-of-organism-tissue-and-desired-cell-types-are-key" class="slide level2 smaller">
+<h2>Knowledge of organism, tissue, and desired cell-types are key</h2>
 <ul>
 <li><p>Quiescent populations may have higher # of unique features</p></li>
 <li><p>Red blood cells may have majority of reads in a few features</p></li>
@@ -470,34 +486,39 @@
 </ul>
 <p>You shouldn’t just apply general filtering thresholds to every study</p>
 <p>Do you value putative detection of subtle signals, or high-confidence analyses?</p>
+<!-- Examples Neutrophils in lung data removed by stricter QC -->
 </section>
 <section class="slide level2">
 
 <h3 id="outlier-detection-approach">Outlier detection approach</h3>
 <p>A good starting point can be to filter outliers from your data</p>
 <p>Median absolute deviation (MAD) outlier detection: exclude values beyond <em>n</em> MADs</p>
-<p><span class="math display">\[
-MAD = median(|X_i - median(X)|)
-\]</span></p>
-<p>Increasing the allowed number of MADs reduces the stringency. A general cutoff used by developers of the scater <sup>1</sup> package is 4 MADs.</p>
-<aside><ol class="aside-footnotes"><li id="fn1"><p><a href="https://bioconductor.org/packages/release/bioc/html/scater.html">Single-Cell Analysis Toolkit for Gene Expression Data in R</a></p></li></ol></aside></section>
+<p><span class="math display">\[MAD = median(|X_i - median(X)|)\]</span></p>
+<p>Increasing the allowed number of MADs reduces the stringency. A general cutoff used by developers of the scater<sup>1</sup> package is 4 MADs.</p>
+<div class="footer">
+<p><a href="https://bioconductor.org/packages/release/bioc/html/scater.html">1. Single-Cell Analysis Toolkit for Gene Expression Data in R</a></p>
+</div>
+</section>
 <section id="doublets" class="slide level2">
 <h2>Doublets</h2>
 <p><img data-src="assets/gem-errors.png"> Two cells that share the same barcode Reads cannot be separated</p>
-<footer>
-<a href="https://www.cs.hhu.de/fileadmin/redaktion/Fakultaeten/Mathematisch-Naturwissenschaftliche_Fakultaet/Informatik/Algorithmische_Bioinformatik/Bachelor-_Masterarbeiten/2576888_ba_ifo_AbschlArbeit_klau_lautwein_pamei104_20210509_0918.pdf">1</a>
-</footer>
+<div class="footer">
+<p><a href="https://www.cs.hhu.de/fileadmin/redaktion/Fakultaeten/Mathematisch-Naturwissenschaftliche_Fakultaet/Informatik/Algorithmische_Bioinformatik/Bachelor-_Masterarbeiten/2576888_ba_ifo_AbschlArbeit_klau_lautwein_pamei104_20210509_0918.pdf">Fig. 1</a></p>
+</div>
 </section>
 <section class="slide level2">
 
-<p>Tools for removing doublets</p>
+<h3 id="doublets-1">Doublets</h3>
+<p>Difficult to identify due to biological and technical variability</p>
+<p>In b cells, removing cells with 2 heavy chains</p>
+<p>Imperfect detection algorithms: you should expect to lose some ‘real’ signal</p>
+<p>UMAP of doublets, overlay of markers from multiple cells</p>
+</section>
+<section class="slide level2">
+
+<h3 id="tools-for-removing-doublets">Tools for removing doublets</h3>
 <p><a href="https://github.com/chris-mcginnis-ucsf/DoubletFinder">DoubletFinder</a></p>
 <p><a href="https://github.com/plger/scDblFinder">scDblFinder</a></p>
-</section>
-<section class="slide level2">
-
-<p>Difficult to identify due to biological and technical variability</p>
-<p>Imperfect detection algorithms: you should expect to lose some ‘real’ signal, but it can also improve the power of your data</p>
 </section>
 <section id="ambient-rna" class="slide level2">
 <h2>Ambient RNA</h2>
@@ -505,33 +526,157 @@ MAD = median(|X_i - median(X)|)
 <p>Ambient RNA fragments get barcoded in GEMs</p>
 <p>Falsely attribute expression to a cell</p>
 
-<img data-src="assets/ambient-RNA.png" class="r-stretch"><p><a href="https://www.10xgenomics.com/resources/analysis-guides/introduction-to-ambient-rna-correction">Introduction to Ambient RNA Correction - 10x genomics</a></p>
+<img data-src="assets/ambient-RNA.png" class="r-stretch"><div class="footer">
+<p><a href="https://www.10xgenomics.com/resources/analysis-guides/introduction-to-ambient-rna-correction">Introduction to Ambient RNA Correction - 10x genomics</a></p>
+</div>
 </section>
 <section class="slide level2">
 
 <h3 id="tools-for-ambient-rna-correction">Tools for ambient RNA correction</h3>
-<p><smaller><em>We will not be doing correction as part of the workshop</em></smaller></p>
+<p><em>We will not be doing correction as part of the workshop</em></p>
 <p>Different methods require different inputs, preprocessing steps, etc.</p>
-<p><a href="https://github.com/constantAmateur/SoupX">SoupX</a></p>
+<p><a href="https://github.com/constantAmateur/SoupX">SoupX</a> - popular correction tool</p>
 <p>See more tools in the 10x vignette</p>
 <p><a href="https://www.10xgenomics.com/resources/analysis-guides/introduction-to-ambient-rna-correction">Introduction to Ambient RNA Correction - 10x genomics</a></p>
 </section></section>
 <section>
 <section id="normalizing-and-scaling-data" class="title-slide slide level1 center">
 <h1>Normalizing and scaling data</h1>
+
+</section>
+<section class="slide level2">
+
+<h3 id="normalizing-and-scaling-data-1">Normalizing and scaling data</h3>
 <p>Standardize transcript counts as fraction of total cell expression</p>
+<p>Log-transform</p>
 <p>Scale to mean = 0</p>
-<p>Identify high-variance features for dimensional reduction</p>
+</section>
+<section class="slide level2">
+
+<h3 id="normalizing-and-scaling-data-2">Normalizing and scaling data</h3>
+<div class="columns">
+<div class="column" style="width:50%;">
+<p>Before <img data-src="assets/prenormalized.png"></p>
+</div><div class="column" style="width:50%;">
+<p>After <img data-src="assets/postnormalized.png"></p>
+</div>
+</div>
 </section>
 <section id="normalization-techniques" class="slide level2 smaller">
 <h2>Normalization techniques</h2>
-<p><code>Seurat::NormalizeData()</code> By default, we employ a global-scaling normalization method “LogNormalize” that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result</p>
-<p><code>Seurat::SCTransform()</code> Tailored to the variance and dropout observed in single-cell data</p>
+<p><code>Seurat::NormalizeData()</code>: “By default, we employ a global-scaling normalization method that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result”</p>
+<p><code>Seurat::SCTransform()</code>: Tailored to the variance and dropout observed in single-cell data, but still somewhat new and up for debate</p>
+<p>Some newer Seurat vignettes will use SCTransform, but many other tools and techniques use classic log normalization. We use <code>NormalizeData</code> in the workshop</p>
+</section></section>
+<section>
+<section id="dimensional-reduction" class="title-slide slide level1 center">
+<h1>Dimensional reduction</h1>
+
+</section>
+<section id="highly-variable-features" class="slide level2 smaller">
+<h2>Highly variable features</h2>
+<p>Datasets include 10,000+ genes, but most aren’t relevant to the study/system</p>
+<p>Focus on genes with high variability between samples</p>
+<p><code>Seurat::FindVariableFeatures</code> handles this in one step</p>
+</section>
+<section id="principle-component-analysis" class="slide level2 smaller">
+<h2>Principle Component Analysis</h2>
+<p>Finding vectors that capture the most variable genes between samples</p>
+<p>Highest PCs account for the most variance in the dataset</p>
+<p>Additional resources</p>
+<ul>
+<li><p><a href="https://www.youtube.com/watch?v=_UVHneBUBW0">StatQuest</a></p></li>
+<li><p><a href="https://hbctraining.github.io/scRNA-seq/lessons/05_normalization_and_PCA.html">HBC</a></p></li>
+</ul>
+</section>
+<section class="slide level2">
+
+
+<img data-src="assets/pca_2.png" class="r-stretch"><div class="footer">
+<p><a href="https://hbctraining.github.io/scRNA-seq/lessons/05_normalization_and_PCA.html">Fig. 1</a></p>
+</div>
+</section>
+<section class="slide level2">
+
+<p>For a given sample with <em>m</em> genes, a score for PC <em>n</em> can be calculated by: <span class="math display">\[PCscore_n = \sum_{k=1}^m (readcount_k * influence_k)\]</span></p>
+</section>
+<section class="slide level2">
+
+
+<img data-src="assets/pca_3.png" class="r-stretch"><div class="footer">
+<p><a href="https://hbctraining.github.io/scRNA-seq/lessons/05_normalization_and_PCA.html">Fig. 1</a></p>
+</div>
+</section></section>
+<section>
+<section id="visualizing-data-in-reduced-dimensions" class="title-slide slide level1 center">
+<h1>Visualizing data in reduced dimensions</h1>
+
+</section>
+<section class="slide level2">
+
+<ul>
+<li><p>Two PCs are usually insufficient to represent SC datasets</p></li>
+<li><p>Additional techniques optimize the 2d representation of high-dim data</p>
+<ul>
+<li>Take PCs as input rather than genes</li>
+</ul></li>
+</ul>
+</section>
+<section id="high-variance-pcs" class="slide level2 smaller">
+<h2>High variance PCs</h2>
+<ul>
+<li><p>Jackstraw - Bootstrapping approach to determine significant PCs</p>
+<ul>
+<li>More rigorous but computationally intense</li>
+</ul></li>
+<li><p>ElbowPlot - Quick heuristic to approximate significant PCs</p>
+<ul>
+<li>Usually sufficient, downstream tools are robust to PC selection</li>
+</ul></li>
+</ul>
+
+<img data-src="assets/elbowplot.png" style="width:200.0%" class="r-stretch"></section>
+<section id="d-visualization-algorithms" class="slide level2 smaller">
+<h2>2D visualization algorithms</h2>
+<ul>
+<li><p><a href="https://en.wikipedia.org/wiki/T-distributed_stochastic_neighbor_embedding">tSNE</a> - t-distributed stochastic neighbor embedding</p>
+<ul>
+<li>Older but still used</li>
+</ul></li>
+<li><p><a href="https://umap-learn.readthedocs.io/en/latest/">UMAP</a> - Uniform Manifold Approximation and Projection for Dimension Reduction</p>
+<ul>
+<li>Preserves global structure better than tSNE</li>
+</ul></li>
+</ul>
+<p><img data-src="assets/tsne_v_umap.png" style="width:120.0%"> tSNE left, UMAP right.</p>
+<div class="footer">
+<p><a href="https://blog.bioturing.com/2022/01/14/umap-vs-t-sne-single-cell-rna-seq-data-visualization/">Fig. 1</a></p>
+</div>
+</section></section>
+<section id="seurat-objects" class="title-slide slide level1 smaller center">
+<h1>Seurat objects</h1>
+<div class="columns">
+<div class="column" style="width:50%;">
+<p>Assays hold cell + gene/feature level data</p>
+<ul>
+<li>Raw counts, normalized counts, etc.</li>
+</ul>
+<p>Metadata / colData holds cell level data</p>
+<ul>
+<li>Sample info (capture, condition), computed metrics (MT proportion, nFeature)</li>
+</ul>
+<p>Reductions hold cell level values for dimensional reductions</p>
+<ul>
+<li>PCA, UMAP</li>
+</ul>
+</div><div class="column" style="width:50%;">
+<p><img data-src="assets/seurat_obj.png"></p>
+</div>
+</div>
 <div class="footer footer-default">
 
 </div>
-</section></section>
-
+</section>
     </div>
   </div>
 

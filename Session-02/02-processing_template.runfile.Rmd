@@ -110,8 +110,8 @@ some minimum thresholds. GEMs/cells with very few reads confound the analysis
 as they are difficult to cluster. 
 
 ```{r}
-cutoffs$nCount_RNA.min <- 2500
-cutoffs$nFeature_RNA.min <- 200
+cutoffs$nCount_RNA.min <- 5000
+cutoffs$nFeature_RNA.min <- 250
 ## This particular dataset is heavy with low-count cells, dragging the 
 ## threshold's upper bound down. I'm manually setting it higher to include
 ## Cells that seem reasonably within range of the dataset
@@ -170,6 +170,33 @@ qc_receipts
 obj <- NormalizeData(obj, normalization.method = 'LogNormalize')
 obj <- ScaleData(obj)
 ```
+
+```{r}
+# boxplot(t(obj@assays$RNA@scale.data[c('CD4', 'CD3D', 'CD8A'),]))
+# genes <- rowSums(obj@assays$RNA@counts[,1:15]) > 100
+# genes <- genes[genes]
+# genes <- genes %>% names()
+# boxplot(obj@assays$RNA@scale.data[genes,1:15])
+# boxplot(as.matrix(obj@assays$RNA@counts[genes,1:15]))
+# as.data.frame(obj@assays$RNA@counts[genes,1:15]) %>%
+#   reshape2::melt() %>%
+# ggplot(aes(x=variable, y = value)) + 
+#   geom_boxplot() + 
+#   scale_y_log10() + 
+#   labs(y='Expression count of genes', x = 'Cell') + 
+#   theme_bw() +
+#   theme(axis.text.x = element_blank())#, axis.ticks.x = element_blank())
+# 
+# as.data.frame(obj@assays$RNA@scale.data[genes,1:15]) %>%
+#   reshape2::melt() %>%
+# ggplot(aes(x=variable, y = value)) + 
+#   geom_boxplot() + 
+#   # scale_y_log10() + 
+#   labs(y='Expression count of genes', x = 'Cell') + 
+#   theme_bw() +
+#   theme(axis.text.x = element_blank())
+```
+
 
 # Dimensional reduction
 
