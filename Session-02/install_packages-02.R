@@ -14,14 +14,17 @@ bioc_packages <- c(
 github_packages <- c(
 )
 
-for (package in cran_packages){
+for (package in cran_packages) {
   tryCatch(
     {
-      if (!require(package, quietly = FALSE, character.only = TRUE)){
+      if (!require(package, quietly = FALSE, character.only = TRUE)) {
         install.packages(package, character.only = TRUE, clean = TRUE)
+        message(paste0(package, ' successfully installed'))
+      } else {
+        message(paste0(package, ' already installed'))
       }
     },
-    error=function(e){
+    error = function(e) {
       message(paste0('Error installing package ', package, '\nOriginal message:'))
       message(e)
     }#,
@@ -32,14 +35,17 @@ for (package in cran_packages){
   )
 }
 
-for (package in bioc_packages){
+for (package in bioc_packages) {
   tryCatch(
     {
-      if (!require(package, quietly = FALSE, character.only = TRUE)){
+      if (!require(package, quietly = FALSE, character.only = TRUE)) {
         BiocManager::install(package)
+        message(paste0(package, ' successfully installed'))
+      } else {
+        message(paste0(package, ' already installed'))
       }
     },
-    error=function(e){
+    error = function(e){
       message(paste0('Error installing package ', package, '\nOriginal message:'))
       message(e)
     }#,
@@ -50,14 +56,17 @@ for (package in bioc_packages){
   )
 }
 
-for (package in github_packages){
+for (package in github_packages) {
   tryCatch(
     {
-      if (!require(package, quietly = FALSE, character.only = TRUE)){
+      if (!require(package, quietly = FALSE, character.only = TRUE)) {
         devtools::install_github(paste0('github::', package))
+        message(paste0(package, ' successfully installed'))
+      } else {
+        message(paste0(package, ' already installed'))
       }
     },
-    error=function(e){
+    error = function(e){
       message(paste0('Error installing package ', package, '\nOriginal message:'))
       message(e)
     }#,
