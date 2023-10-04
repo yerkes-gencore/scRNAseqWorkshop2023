@@ -66,4 +66,6 @@ This can be mitigated by performing your analysis on a container with a fixed ar
 This is a more advanced consideration, and is likely beyond the scope of this workshop, but it's worth considering for publication-ready results.
 The Rocker project maintains public (free) docker images with Rstudio servers ready to use 'out of the box'.
 
+https://journal.r-project.org/archive/2017/RJ-2017-065/RJ-2017-065.pdf
 https://rocker-project.org/
+
