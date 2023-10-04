@@ -69,3 +69,16 @@ The Rocker project maintains public (free) docker images with Rstudio servers re
 https://journal.r-project.org/archive/2017/RJ-2017-065/RJ-2017-065.pdf
 https://rocker-project.org/
 
+
+--------------
+other readings
+--------------
+
+Not required, but if you want to dive deeper into a topic, these are some good resources
+
+Seurat                - https://satijalab.org/seurat/
+PCA                   - https://hbctraining.github.io/scRNA-seq/lessons/05_normalization_and_PCA.html
+Ambient RNA           - https://www.10xgenomics.com/resources/analysis-guides/introduction-to-ambient-rna-correction
+Cell cycle regression - https://satijalab.org/seurat/articles/cell_cycle_vignette
+UMAP                  - https://umap-learn.readthedocs.io/en/latest/
+
