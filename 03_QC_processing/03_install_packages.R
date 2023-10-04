@@ -4,7 +4,8 @@ cran_packages <- c(
   'here',
   'tidyverse',
   'Seurat',
-  'clustree'
+  'clustree',
+  'hdf5r'
 )
 
 bioc_packages <- c(
