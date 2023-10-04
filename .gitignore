@@ -7,6 +7,8 @@
 **/metadata.csv.gz
 **/features.tsv.gz
 *.png
+*.qmd
+*.html
 
 # R Data files
 *.rds
