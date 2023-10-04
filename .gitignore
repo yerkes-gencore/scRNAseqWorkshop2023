@@ -6,6 +6,7 @@
 **/matrix.mtx.gz
 **/metadata.csv.gz
 **/features.tsv.gz
+*.png
 
 # R Data files
 *.rds
