@@ -31,17 +31,23 @@ source(here('Session-02/functions_session-02.R'))
 
 # Load data
 
+Reading in CellRanger outputs
+
 ```{r}
-## Reading in CellRanger outputs
 obj <- Read10X_h5(here('Data/kang/s1244_stim.h5'))
 obj <- CreateSeuratObject(obj)
+```
 
-## Initializing a list to record changes to our dataset through processing steps
+Initializing a list to record changes to our dataset through processing steps
+
+```{r}
 qc_receipts <- list()
 qc_receipts$raw_data <- dim(obj)
 ```
 
 # Add QC metrics
+
+We can write new metadata to our Seurat object
 
 ```{r}
 # Add number of genes per UMI for each cell to metadata
@@ -52,10 +58,10 @@ obj$log10GenesPerUMI <- log10(obj$nFeature_RNA)/log10(obj$nCount_RNA)
 ## https://en.wikipedia.org/wiki/Regular_expression
 
 # Mitochondrial ratio
-obj$percent.mt <- PercentageFeatureSet(object=obj, pattern="^MT")/100
+obj$percent.mt <- PercentageFeatureSet(object = obj, pattern = "^MT")/100
 
 # Ribosomal ratio
-obj$percent.rb <- PercentageFeatureSet(object=obj, pattern="^RP[SL]")/100
+obj$percent.rb <- PercentageFeatureSet(object = obj, pattern = "^RP[SL]")/100
 ```
 
 Seurat has some built in visualization functions
@@ -92,6 +98,8 @@ perform similar processing.
 obj <- run_scDblFinder(obj)
 ```
 
+You can subset the seurat object using metadata columns and values
+
 ```{r}
 ## keeping only the singlets
 obj <- subset(obj, subset = scDblFinder.class == 'singlet')
@@ -120,9 +128,8 @@ Manually adjust thresholds here if necessary
 
 ```{r}
 cutoffs$nCount_RNA.max <- 10000
-cutoffs$percent.mt.max <- 2
+cutoffs$percent.mt.max <- 5
 ```
-
 
 Now adding metadata to identify which cells fall within thresholds
 
@@ -168,8 +175,19 @@ qc_receipts
 # Normalize and scale
 
 ```{r}
+## Seurat functions have lots of arguments with default values, 
+## consider checking the help documentation to learn more about these functions
 obj <- NormalizeData(obj, normalization.method = 'LogNormalize')
 obj <- ScaleData(obj)
+```
+
+Adjusted data are stored in new slots in the Seurat object
+
+```{r}
+## Normalized data
+obj@assays$RNA@data[c('CD3D'),1:6]
+## Scaled data
+obj@assays$RNA@scale.data[c('CD3D'),1:6]
 ```
 
 # Dimensional reduction
@@ -181,6 +199,8 @@ for separating cell populations.
 
 ```{r}
 obj <- FindVariableFeatures(obj)
+## Variable features are stored within the assay
+head(obj@assays$RNA@var.features)
 ```
 
 ## Calculate PCs
@@ -197,27 +217,38 @@ You can see how much a given gene is influencing a principal component
 obj@reductions$pca@feature.loadings[c('CCR7', 'CCL8', 'ISG15'), 1:5]
 ```
 
+# Visualization
+
+Visualization with PCA doesn't show distinct cell populations. We'll use UMAP
+to visualize our data
+
+```{r}
+## This is supposed to look bad
+DimPlot(obj, group.by = 'orig.ident', reduction = 'pca') + NoLegend()
+```
 
 ## Identify relevant PCs
 
-Don't get too hung up on this: most of the state-of-the-field methods
+Don't get too hung up on this: most state-of-the-field methods
 are pretty robust to PC selection. The most important point is to 
 include all of the most high-variance PCs.
-
 
 ```{r}
 ElbowPlot(obj, ndims = 30)
 ```
 
+## Construct neighbor graph
+
 Identify neighbors in a lower-dimension space. Neighbors will be used to inform clusters later, but we do it here since it depends on significant PCs.
 
 ```{r}
 obj <- FindNeighbors(obj, dims = 1:10)
+obj@graphs$RNA_snn[1:6, 1:6]
 ```
 
 ## Calculating UMAP
 
-Recall that UMAP is a visualization technique to reduce high-dimensional data into lower space for plotting. We perform UMAP on the principle components.
+Recall that UMAP is a visualization technique to reduce high-dimensional data into lower space for plotting. We perform UMAP on the significant principle components.
 
 ```{r}
 obj <- RunUMAP(obj, dims = 1:10)
@@ -227,11 +258,11 @@ The result is a visual separation of cells based on highly variable features
 captured in the PCs.
 
 ```{r}
-DimPlot(obj, group.by = 'orig.ident')
+DimPlot(obj, group.by = 'orig.ident', reduction = 'umap') + NoLegend()
 ```
 
 We often use the UMAP for visualizing features and metadata on cell populations 
-in a capture. But ultimately the UMAP output is just that: coordinate values for plotting. 
+in a capture. But ultimately the UMAP output is just coordinate values for plotting. 
 
 ```{r}
 head(obj@reductions$umap@cell.embeddings)
@@ -244,6 +275,7 @@ cluster of high mitochndrial expression may indicate dead or dying cells that yo
 may want to exclude from analysis.
 
 ```{r, fig.width=12, fig.height=12}
+## Running `RunUMAP` usuaslly sets your default reduction to umap
 FeaturePlot(obj,
             features = c('nFeature_RNA',
                          'nCount_RNA',
@@ -330,7 +362,7 @@ visualize changes in clusters across different resolutions.
 
 You can also pull out subsets of your data and independently cluster those, force
 higher-resolution clustering of particular clusters you wish to break up, or join 
-clusters with no observable distinction. Resolution selection is often an iterative 
+clusters with no observable distinction. Cluster defining is often an iterative 
 process as you work to identify the cell populations in your data.
 
 ```{r}
