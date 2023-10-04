@@ -23,16 +23,16 @@ knitr::opts_chunk$set(echo=FALSE,
 set.seed(43)
 ## Sourcing a small set of custom functions as a separate script to keep this
 ## script shorter and more readable
-source(here('Session-03/functions_session-03.R'))
+source(here('04_Cell_annotation/04_helper_functions.R'))
 ```
 
 # Load data
 
 ```{r}
-obj <- readRDS(here('saved_rds/processed_obj.Rds'))
+obj <- readRDS(here('saved_rds/03-QC_processed_obj.Rds'))
 
 ## Load a reference dataset in
-ref.hpca <- HumanPrimaryCellAtlasData()
+ref.hpca <- celldex::HumanPrimaryCellAtlasData()
 ```
 
 ```{r}
@@ -363,5 +363,5 @@ DimPlot(obj, group.by = 'celltype_annotations', label = TRUE)
 # save object post-mapping
 
 ```{r}
-saveRDS(obj, here('saved_rds/03-annotated_obj.Rds'))
+saveRDS(obj, here('saved_rds/04-annotated_obj.Rds'))
 ```
