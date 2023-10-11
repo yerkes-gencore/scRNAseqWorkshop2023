@@ -35,7 +35,7 @@ Reading in CellRanger outputs
 
 ```{r}
 ## chose a sample
-obj <- Read10X_h5(here('Data/kang/<CHOOSE A SAMPLE FILE>'))
+obj <- Read10X_h5(here('Data/kang/s101_ctrl.h5'))
 obj <- CreateSeuratObject(obj)
 ```
 
@@ -215,7 +215,7 @@ obj <- RunPCA(obj)
 You can see how much a given gene is influencing a principal component
 
 ```{r}
-obj@reductions$pca@feature.loadings[c('CCR7', 'CCL8', 'ISG15'), 1:5]
+obj@reductions$pca@feature.loadings[1:5, 1:5]
 ```
 
 # Visualization
@@ -393,7 +393,7 @@ for (i in seq(0.2,2,0.2)){
 Look for a resolution that is stable: no strong changes in cluster membership
 at either higher or lower resolutions. 
 
-```{r, fig.height=12, fig.width=12}
+```{r, fig.height=6, fig.width=6}
 clustree(clustree_data)
 ```
 
