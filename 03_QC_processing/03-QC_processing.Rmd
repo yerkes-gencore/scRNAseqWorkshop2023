@@ -35,7 +35,7 @@ Reading in CellRanger outputs
 
 ```{r}
 ## chose a sample
-obj <- Read10X_h5(here('Data/kang/s101_ctrl.h5'))
+obj <- Read10X_h5(here('Data/kang/< CHOOSE YOUR FILE >'))
 obj <- CreateSeuratObject(obj)
 ```
 
