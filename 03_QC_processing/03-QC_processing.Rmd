@@ -42,7 +42,7 @@ Reading in CellRanger outputs
 
 ```{r}
 ## chose a sample
-obj <- Read10X_h5(here('Data/kang/< CHOOSE YOUR FILE >'))
+obj <- Read10X_h5(here('Data/kang/<CHOOSE A FILE>.h5'))
 obj <- CreateSeuratObject(obj)
 ```
 
@@ -106,16 +106,6 @@ perform similar processing.
 obj <- run_scDblFinder(obj)
 ```
 
-You can subset the seurat object using metadata columns and values
-
-```{r}
-## keeping only the singlets
-obj <- subset(obj, subset = scDblFinder.class == 'singlet')
-## observe how many cells were removed
-qc_receipts$post_doublet_removal <- dim(obj)
-qc_receipts
-```
-
 # Filtering low quality cells
 
 ## Set filtering thresholds
@@ -167,6 +157,8 @@ ggplot(obj@meta.data, aes(x=nCount_RNA, y=nFeature_RNA, color=filtered)) +
 ```
 
 ## Filter cells
+
+You can subset the seurat object using metadata columns and values
 
 ```{r}
 obj <- subset(obj, subset = filtered == FALSE)
@@ -307,6 +299,23 @@ FeaturePlot(obj,
                          'CD3G'))
 ```
 
+## Doublets
+
+
+```{r}
+DimPlot(obj, group.by = 'scDblFinder.class')
+```
+
+Decide if you want to subset to singlets
+
+```{r}
+## keeping only the singlets
+obj <- subset(obj, subset = scDblFinder.class == 'singlet')
+## observe how many cells were removed
+qc_receipts$post_doublet_removal <- dim(obj)
+qc_receipts
+```
+
 # Check cell cycle
 
 Seurat provides some pre-defined cell-cycle genes. 
@@ -318,7 +327,7 @@ c(cc.genes$s.genes, cc.genes$g2m.genes)[c(cc.genes$s.genes, cc.genes$g2m.genes) 
 ```
 
 It's also useful to look at your final clustering to see if it's actually
-being driven by cell cycle. Look for separation of phases. 
+being noticably driven by cell cycle. Look for separation of phases. 
 
 ```{r}
 ## Seurat has functions to calculate a module score, weighting
@@ -344,20 +353,7 @@ we will focus on the subset of genes present in more than N cells.
 obj.cc_check <- filterLowGenes(obj, min.cells = 100, assay = 'RNA', calculate_only = FALSE)
 ```
 
-```{r}
-obj.cc_check <- ScaleData(obj.cc_check,
-                          vars.to.regress = c('S.Score', 'G2M.Score'),
-                          features = rownames(obj.cc_check)) %>%
-  FindVariableFeatures() %>%
-  RunPCA() %>%
-  FindNeighbors(dims = 1:20) %>%
-  RunUMAP(dims = 1:20)
-  
-DimPlot(obj.cc_check, reduction = 'umap', group.by = 'Phase')
-```
-
-If this doesn't look like an improvement, but you still want to regress cell cycle
-from the data, you can try an alternative workflow. See Seurat's vignette for more details.
+See Seurat's vignette for more details.
 https://satijalab.org/seurat/articles/cell_cycle_vignette
 
 ```{r}
