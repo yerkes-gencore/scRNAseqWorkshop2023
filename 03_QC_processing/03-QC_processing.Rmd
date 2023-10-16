@@ -22,6 +22,13 @@ knitr::opts_chunk$set(echo = FALSE,
                       fig.align = 'center',
                       cache = FALSE, cache.lazy = FALSE)
 
+## Defining where the script is relative to the project.
+## If you are using R projects, this isn't necessary.
+## You should be using R projects for this workshop.
+## If you move this script to a different location, this is not longer true and
+## you will have to adjust the paths accordingly
+here::i_am('03_QC_processing/03-QC_processing.Rmd')
+
 ## Explicitly setting the randomizer seed for reproducibility 
 set.seed(43)
 ## Sourcing a small set of custom functions as a separate script to keep this
@@ -178,6 +185,7 @@ qc_receipts
 ```{r}
 ## Seurat functions have lots of arguments with default values, 
 ## consider checking the help documentation to learn more about these functions
+## run '?NormalizeData' in the console
 obj <- NormalizeData(obj, normalization.method = 'LogNormalize')
 obj <- ScaleData(obj)
 ```
@@ -186,9 +194,9 @@ Adjusted data are stored in new slots in the Seurat object
 
 ```{r}
 ## Normalized data
-obj@assays$RNA@data[c('CD3D'),1:6]
+obj@assays$RNA@data[1:5,1:5]
 ## Scaled data
-obj@assays$RNA@scale.data[c('CD3D'),1:6]
+obj@assays$RNA@scale.data[1:5,1:5]
 ```
 
 # Dimensional reduction
@@ -244,9 +252,9 @@ intense for large datasets
 
 ```{r}
 ?Seurat::JackStraw
-obj <- JackStraw(obj, dims = 30)
-obj <- ScoreJackStraw(obj, dims = 1:30)
-obj@reductions$pca@jackstraw$overall.p.values
+# obj <- JackStraw(obj, dims = 30)
+# obj <- ScoreJackStraw(obj, dims = 1:30)
+# obj@reductions$pca@jackstraw$overall.p.values
 ```
 
 ## Construct neighbor graph
