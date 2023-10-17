@@ -1,0 +1,134 @@
+---
+title: "scRNAseq Markers and Cell annotation"
+author: "Me!"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 0 - Project Setup
+
+## Load packages
+
+```{r}
+library(Seurat)
+library(UCell)
+library(SingleR)
+library(celldex)
+```
+
+## Downloading the necessary files
+
+Make sure that you've downloaded a zip of the github repo [INSERT URL HERE] and unzip it somewhere on your computer (e.g. in your `Desktop` directory).
+
+If you want to keep working in the directory you created last class, simple copy and paste the `04_markers+annotation` folder into the base level of your existing directory.
+
+If you'd like to start fresh in a clean working directory, you can simply work from the newly unzipped folder.
+
+*Note: If you are comfortable using git (beyond the scope of this workshop) and are already working within a local clone of the repo, you can skip the above and simply `git pull` the repo.*
+
+## Setting up an RStudio Project and using here()
+
+If you aren't already working within an RStudio Project with the `scRNAseqWorkshop2023` folder as the base level, create a new Project:
+  `File` (in the RStudio toolbar at the top of your screen) > 
+    `New Project...` (in the dropdown menu) > 
+      `Existing Directory` (in the prompt that appears) > 
+        Navigate to the base level of the directory that you just unzipped (likely named `scRNAseqWorkshop2023`) >
+          OK
+
+Now, in the R Console (or in this chunk) run `getwd()`. It should be the full path to the `scRNAseqWorkshop2023` directory.
+```{r}
+getwd()
+```
+
+The `here()` function from the `here` package (`install.packages("here")` if you didn't last week) automatically knows the base level of your RStudio project so that you can refer to files using their relative paths. This makes it easier to share a project with others (or yourself on another machine) without needing to hard-code absolute paths. Check that it is working by running the following:
+```{r}
+# should output the same path as getwd()
+library(here)
+
+# if that didn't print a message run this
+here()
+
+# this function call automatically tests whether the correct directory is assigned to here(), and attempts to fix it if not
+i_am("04_markers+annotation/04-markers+annotation_script.Rmd")
+
+# try this again just in case
+here()
+```
+
+Now that you've set up `here()` correctly, don't try to change directories using `setwd()`. Just refer to files based on their relative paths starting at the project's base directory within the `here()` function.
+
+***
+
+**Add section reviewing the UMAP and unsupervised clusters that we start with.**
+
+# 1 - Using *a priori* Markers to identify cell types
+
+## 1.1 - Visualize individual markers
+
+### FeaturePlot
+
+```{r}
+
+```
+
+### VlnPlot
+
+```{r}
+
+```
+
+### DotPlot
+
+```{r}
+
+```
+
+
+## 1.2 - Visualize group signatures
+
+### Calculate UCell module score for each cell type in the marker list
+
+```{r}
+
+```
+
+### Plot FeaturePlots split across each label
+
+```{r}
+
+```
+
+### Plot a DotPlot for each module score
+
+```{r}
+
+```
+
+
+***
+
+# 2 - Finding *de novo* Markers
+
+## 2.1 - Find one-vs-all markers for each unsupervised cluster
+
+```{r}
+
+```
+
+## 2.2 - Plot heatmap of all markers
+
+```{r}
+
+```
+
+## 2.3 - Custom GO analysis dotplot
+
+```{r}
+# refer to helper functions script
+```
+
+***
+
+# 3 - Automated cell type annotation methods
+
+
