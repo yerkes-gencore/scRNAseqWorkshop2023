@@ -106,6 +106,15 @@ perform similar processing.
 obj <- run_scDblFinder(obj)
 ```
 
+```{r}
+ggplot(obj@meta.data, aes(x=log10GenesPerUMI, y=nCount_RNA, color=scDblFinder.class)) +
+  geom_point(alpha=0.5) +
+  scale_x_log10() +
+  scale_y_log10() +
+  theme_classic()
+```
+
+
 # Filtering low quality cells
 
 ## Set filtering thresholds
@@ -311,10 +320,21 @@ Decide if you want to subset to singlets
 ```{r}
 ## keeping only the singlets
 obj <- subset(obj, subset = scDblFinder.class == 'singlet')
+## If you remove some of the data, you have to redo clustering
+ElbowPlot(obj, ndims = 30)
+sig_dims <- ???
+obj <- FindNeighbors(obj, dims = 1:sig_dims)
+obj <- RunUMAP(obj, dims = 1:sig_dims)
 ## observe how many cells were removed
 qc_receipts$post_doublet_removal <- dim(obj)
 qc_receipts
+
 ```
+
+```{r}
+DimPlot(obj)
+```
+
 
 # Check cell cycle
 
@@ -397,7 +417,7 @@ for (i in seq(0.2,2,0.2)){
 Look for a resolution that is stable: no strong changes in cluster membership
 at either higher or lower resolutions. 
 
-```{r, fig.height=6, fig.width=6}
+```{r, fig.height=10, fig.width=10}
 clustree(clustree_data)
 ```
 
