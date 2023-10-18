@@ -1,0 +1,274 @@
+---
+title: "scRNAseq Markers and Cell annotation"
+author: "Me!"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 0 - Project Setup
+
+## Load packages
+
+```{r}
+library(Seurat)
+library(UCell)
+library(SingleR)
+library(celldex)
+```
+
+## Downloading the necessary files
+
+Make sure that you've downloaded a zip of the github repo [INSERT URL HERE] and unzip it somewhere on your computer (e.g. in your `Desktop` directory).
+
+If you want to keep working in the directory you created last class, simple copy and paste the `04_markers+annotation` folder into the base level of your existing directory.
+
+If you'd like to start fresh in a clean working directory, you can simply work from the newly unzipped folder.
+
+*Note: If you are comfortable using git (beyond the scope of this workshop) and are already working within a local clone of the repo, you can skip the above and simply `git pull` the repo.*
+
+## Setting up an RStudio Project and using here()
+
+If you aren't already working within an RStudio Project with the `scRNAseqWorkshop2023` folder as the base level, create a new Project:
+  `File` (in the RStudio toolbar at the top of your screen) > 
+    `New Project...` (in the dropdown menu) > 
+      `Existing Directory` (in the prompt that appears) > 
+        Navigate to the base level of the directory that you just unzipped (likely named `scRNAseqWorkshop2023`) >
+          OK
+
+The `here()` function from the `here` package (`install.packages("here")` if you didn't last week) automatically knows the base level of your RStudio project so that you can refer to files using their relative paths. This makes it easier to share a project with others (or yourself on another machine) without needing to hard-code absolute paths. Check that it is working by running the following:
+```{r}
+# should output the base directory of the project
+library(here)
+
+# if that didn't print a message run this
+here()
+
+# this function automatically tests whether the correct directory is assigned to here(); 
+# if this doesn't work it will print an error message to help you resolve the problem
+i_am("04_markers+annotation/04-markers+annotation_script.Rmd")
+
+# try this again just in case
+here()
+```
+
+Now that you've set up `here()` correctly, don't try to change directories using `setwd()`. Just refer to files based on their relative paths starting at the project's base directory within the `here()` function.
+
+***
+
+# 1 - Review of QC pre-processing steps
+
+Pair up into groups of two. What is the youngest person's birthday month? Choose the sample based on the month, i.e. if they were born in January, choose `s101_ctrl.h5`, if they were born in April, choose `s107_stim.h5`. 
+
+## Read in h5 file, QC filtering, normalizing and scaling
+Change QC filtering thresholds as desired. The thresholds given are just examples.
+```{r}
+# Read in data
+obj <- Read10X_h5(here('Data/kang/s101_ctrl.h5'))
+obj <- CreateSeuratObject(obj)
+
+# Add metadata columns for QC
+obj$log10GenesPerUMI <- log10(obj$nFeature_RNA)/log10(obj$nCount_RNA)
+obj$percent.mt <- PercentageFeatureSet(object = obj, pattern = "^MT")
+obj$percent.rb <- PercentageFeatureSet(object = obj, pattern = "^RP[SL]")
+
+# Run doublet finder
+obj <- run_scDblFinder(obj)
+
+# Plot QC metrics for each cell
+VlnPlot(obj, features = c('nFeature_RNA', 'nCount_RNA', 'percent.mt', 'percent.rb'), ncol = 4)
+
+FeatureScatter(obj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", plot.cor = FALSE) + 
+  NoLegend()
+```
+
+Generate outlier-based cutoffs and visualize how this would change the QC metric distributions
+```{r}
+# Generate QC metric thresholds based on outliers
+cutoffs <- generate_capture_QC_cutoffs(obj, nmads = 4)
+
+# View the outlier-based cutoffs
+cutoffs
+
+# Add a binary metadata column to apply your filtering thresholds
+obj$outlier_cutoffs <- 
+  !(obj$nCount_RNA >= cutoffs$nCount_RNA.min &
+    obj$nCount_RNA <= cutoffs$nCount_RNA.max &
+    obj$nFeature_RNA >= cutoffs$nFeature_RNA.min &
+    obj$nFeature_RNA <= cutoffs$nFeature_RNA.max &
+    obj$log10GenesPerUMI >= cutoffs$log10GenesPerUMI.min &
+    obj$log10GenesPerUMI <= cutoffs$log10GenesPerUMI.max &
+    obj$percent.mt >= cutoffs$percent.mt.min &
+    obj$percent.mt <= cutoffs$percent.mt.max &
+    obj$percent.rb >= cutoffs$percent.rb.min &
+    obj$percent.rb <= cutoffs$percent.rb.max)
+
+# Plot QC metrics for each cell (green = removed cells, red = remaining cells)
+VlnPlot(obj, features = c('nFeature_RNA', 'nCount_RNA', 'percent.mt', 'percent.rb'), 
+        split.by = "outlier_cutoffs", ncol = 4)
+
+FeatureScatter(subset(obj, subset=outlier_cutoffs, invert=TRUE), feature1 = "nCount_RNA", feature2 = "nFeature_RNA", plot.cor = FALSE) +
+  FeatureScatter(subset(obj, subset=outlier_cutoffs), feature1 = "nCount_RNA", feature2 = "nFeature_RNA", plot.cor = FALSE) &
+  xlim(0,8000) & ylim(0, 2000) & NoLegend()
+```
+
+Manually adjust thresholds and re-plot with new thresholds if desired. [Skip this for now, you can try this outside of class.]
+```{r}
+# cutoffs$nCount_RNA.max <- 4000
+# cutoffs$nFeature_RNA.max <- 1200
+
+# # Add a binary metadata column to apply your filtering thresholds
+# obj$adjusted_cutoffs <- 
+#   !(obj$nCount_RNA >= cutoffs$nCount_RNA.min &
+#     obj$nCount_RNA <= cutoffs$nCount_RNA.max &
+#     obj$nFeature_RNA >= cutoffs$nFeature_RNA.min &
+#     obj$nFeature_RNA <= cutoffs$nFeature_RNA.max &
+#     obj$log10GenesPerUMI >= cutoffs$log10GenesPerUMI.min &
+#     obj$log10GenesPerUMI <= cutoffs$log10GenesPerUMI.max &
+#     obj$percent.mt >= cutoffs$percent.mt.min &
+#     obj$percent.mt <= cutoffs$percent.mt.max &
+#     obj$percent.rb >= cutoffs$percent.rb.min &
+#     obj$percent.rb <= cutoffs$percent.rb.max)
+
+# # Plot QC metrics for each cell (green = removed cells, red = remaining cells)
+# VlnPlot(obj, features = c('nFeature_RNA', 'nCount_RNA', 'percent.mt', 'percent.rb'), 
+#         split.by = "adjusted_cutoffs", ncol = 4)
+# 
+# FeatureScatter(subset(obj, subset=adjusted_cutoffs, invert=TRUE), feature1 = "nCount_RNA", feature2 = "nFeature_RNA", plot.cor = FALSE) +
+#   FeatureScatter(subset(obj, subset=adjusted_cutoffs), feature1 = "nCount_RNA", feature2 = "nFeature_RNA", plot.cor = FALSE) &
+#   xlim(0,8000) & ylim(0, 2000) & NoLegend()
+```
+
+Subset based on desired thresholds
+```{r}
+obj <- subset(obj, subset = outlier_cutoffs == FALSE)
+```
+
+## Find neighbors and choose cluster resolution
+I've calculated multiple cluster resolutions here. How try `FindClusters()` at resolution = 0.1.
+```{r}
+# input: obj@assays$RNA@counts; output: adds log2 normalized counts to obj@assays$RNA@data slot
+obj <- NormalizeData(obj, normalization.method = 'LogNormalize') 
+# input: obj@assays$RNA@data; output: adds scaled normalized counts (used for PCA) to obj@assays$RNA@scale.data slot
+obj <- ScaleData(obj) 
+# input: obj@assays$RNA@counts; output: adds vector of variable feature (gene) names to obj@assays$RNA@var.features slot
+obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = 2000)
+# input: obj@assays$RNA@scale.data and obj@assays$RNA@var.features; output: adds PCA coordinates to obj@reductions$pca
+obj <- RunPCA(obj, npcs = 50)
+# Let's say we choose the top 30 PCs
+npcs <- 30
+# input: scale.data, var.features, pca; output: adds obj@graphs$nn obj@graphs$snn with values measuring similarity among pairs of nearest neighbor cells (i.e. describing a graph/network of cells)
+obj <- FindNeighbors(obj, dims = 1:npcs)
+# input: obj@graphs$snn; output: adds columns assigning cells for each cluster for each calculated resolution in obj@meta.data
+obj <- FindClusters(obj, resolution = seq(0.2, 1.4, 0.2))
+# input: obj@reductions$pca, obj@graphs$snn, obj@graphs$nn; output: obj@reductions$umap
+obj <- RunUMAP(obj, dims = 1:npcs)
+```
+
+Here, we calculate and plot the UMAP. I've colored the cells by the metadata column `"seurat_clusters"` here, which is based on the most recently called run of `FindClusters()`.
+```{r}
+DimPlot(obj, reduction = "umap", group.by = "seurat_clusters")
+# Note that Seurat also has a slot called "Ident" which is automatically set to "seurat_clusters" any time FindClusters is run.
+Idents(obj)
+# Also note that DimPlot defaults to plotting the Ident, and plotting the UMAP if it is available, so the following is equivalent to the first DimPlot call:
+DimPlot(obj)
+```
+
+You can access the full dataframe of metadata for this seurat object like so. Which columns are the other clusters resolution labels stored under?
+```{r}
+View(obj@meta.data)
+```
+
+Plot a few different resolutions with `DimPlot()`. Do you prefer any in particular? If so, why?
+```{r}
+DimPlot(obj, group.by = "RNA_snn_res.0.2")
+DimPlot(obj, group.by = "RNA_snn_res.0.4")
+DimPlot(obj, group.by = "RNA_snn_res.0.6")
+DimPlot(obj, group.by = "RNA_snn_res.0.8")
+DimPlot(obj, group.by = "RNA_snn_res.1")
+DimPlot(obj, group.by = "RNA_snn_res.1.2")
+```
+
+Choose one cluster resolution as the new cell identities so we have it saved for downstream processing
+```{r}
+Ident(obj) <- "RNA_snn_res.0.8"
+```
+
+***
+
+# 1 - Using *a priori* Markers to identify cell types
+
+Use the following *a priori* markers in the following sections:
+```{r}
+
+```
+
+
+## 1.1 - Visualize individual markers
+
+### FeaturePlot
+
+```{r}
+
+```
+
+### VlnPlot
+
+```{r}
+
+```
+
+### DotPlot
+
+```{r}
+
+```
+
+
+## 1.2 - Visualize group signatures
+
+### Calculate UCell module score for each cell type in the marker list
+
+```{r}
+
+```
+
+### Plot FeaturePlots split across each label
+
+```{r}
+
+```
+
+### Plot a DotPlot for each module score
+
+```{r}
+
+```
+
+
+***
+
+# 2 - Finding *de novo* Markers
+
+## 2.1 - Find one-vs-all markers for each unsupervised cluster
+
+```{r}
+
+```
+
+## 2.2 - Plot heatmap of all markers
+
+```{r}
+
+```
+
+## 2.3 - Custom GO analysis dotplot
+
+```{r}
+# refer to helper functions script
+```
+
+***
+
+# 3 - Automated cell type annotation methods
+
+
