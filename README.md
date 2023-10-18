@@ -35,7 +35,7 @@ If you've set up the project correctly, your files pane in Rstudio should look l
 <img width="129" alt="image" src="https://github.com/yerkes-gencore/scRNAseqWorkshop2023/assets/46037149/8bef303d-7d32-4c32-a640-ff6ba984a164">
 
 
-The scripts rely on consistent filestructure in a project for the provided paths to work. If you save files in a format different than
+The scripts rely on consistent filestructure in a project for the provided paths to work. If you save files in locations different than
 how this repo is arranged, you will have to manually adjust filepaths. 
 
 <img width="468" alt="These paths depend on the project structure" src="https://github.com/yerkes-gencore/scRNAseqWorkshop2023/assets/46037149/236ca130-9b41-4a36-81a3-9cf58dd11258">
