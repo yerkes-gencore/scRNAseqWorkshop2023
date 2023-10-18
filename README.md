@@ -17,7 +17,7 @@ them for subsequent sessions of the workshop.
 If you don't want to use the Git workflow, you can download a zip of the repo using the following steps.
 Note that through this approach, you will have to manually re-download files as we add them to the repo. 
 
-1) Hit the green 'Code' button in the top left to open a dropdown menu.  Select 'download zip' and save the compressed folder.
+1) Hit the green 'Code' button in the top right to open a dropdown menu.  Select 'download zip' and save the compressed folder.
    
 <img width="495" alt="image" src="https://github.com/yerkes-gencore/scRNAseqWorkshop2023/assets/46037149/2ba9f88c-81c5-439b-81fc-42d6c227e9ba">
 
