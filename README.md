@@ -32,7 +32,7 @@ Note that through this approach, you will have to manually re-download files as 
 
 If you've set up the project correctly, your files pane in Rstudio should look like this: a `.Rproj` file at the highest level of the repo.
 
-<img width="129" alt="image" src="https://github.com/yerkes-gencore/scRNAseqWorkshop2023/assets/46037149/8bef303d-7d32-4c32-a640-ff6ba984a164">
+<img width="260" alt="image" src="https://github.com/yerkes-gencore/scRNAseqWorkshop2023/assets/46037149/8bef303d-7d32-4c32-a640-ff6ba984a164">
 
 
 The scripts rely on consistent filestructure in a project for the provided paths to work. If you save files in locations different than
