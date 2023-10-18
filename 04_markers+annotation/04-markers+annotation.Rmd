@@ -10,6 +10,7 @@ output: html_document
 ## Load packages
 
 ```{r}
+library(tidyverse)
 library(Seurat)
 library(UCell)
 library(SingleR)
@@ -45,13 +46,18 @@ here()
 
 # this function automatically tests whether the correct directory is assigned to here(); 
 # if this doesn't work it will print an error message to help you resolve the problem
-i_am("04_markers+annotation/04-markers+annotation_script.Rmd")
+i_am("04_markers+annotation/04-markers+annotation.Rmd")
 
 # try this again just in case
 here()
 ```
 
 Now that you've set up `here()` correctly, don't try to change directories using `setwd()`. Just refer to files based on their relative paths starting at the project's base directory within the `here()` function.
+
+```{r}
+source(here("03_QC_processing/03_helper_functions.R"))
+```
+
 
 ***
 
@@ -168,7 +174,7 @@ Here, we calculate and plot the UMAP. I've colored the cells by the metadata col
 ```{r}
 DimPlot(obj, reduction = "umap", group.by = "seurat_clusters")
 # Note that Seurat also has a slot called "Ident" which is automatically set to "seurat_clusters" any time FindClusters is run.
-Idents(obj)
+# Idents(obj)
 # Also note that DimPlot defaults to plotting the Ident, and plotting the UMAP if it is available, so the following is equivalent to the first DimPlot call:
 DimPlot(obj)
 ```
@@ -180,70 +186,124 @@ View(obj@meta.data)
 
 Plot a few different resolutions with `DimPlot()`. Do you prefer any in particular? If so, why?
 ```{r}
-DimPlot(obj, group.by = "RNA_snn_res.0.2")
-DimPlot(obj, group.by = "RNA_snn_res.0.4")
-DimPlot(obj, group.by = "RNA_snn_res.0.6")
-DimPlot(obj, group.by = "RNA_snn_res.0.8")
-DimPlot(obj, group.by = "RNA_snn_res.1")
-DimPlot(obj, group.by = "RNA_snn_res.1.2")
+DimPlot(obj, group.by = "RNA_snn_res.0.2", label = TRUE)
+DimPlot(obj, group.by = "RNA_snn_res.0.4", label = TRUE)
+DimPlot(obj, group.by = "RNA_snn_res.0.6", label = TRUE)
+DimPlot(obj, group.by = "RNA_snn_res.0.8", label = TRUE)
+DimPlot(obj, group.by = "RNA_snn_res.1", label = TRUE)
+DimPlot(obj, group.by = "RNA_snn_res.1.2", label = TRUE)
 ```
 
 Choose one cluster resolution as the new cell identities so we have it saved for downstream processing
 ```{r}
-Ident(obj) <- "RNA_snn_res.0.8"
+Idents(obj) <- "RNA_snn_res.0.8"
 ```
 
 ***
 
 # 1 - Using *a priori* Markers to identify cell types
 
-Use the following *a priori* markers in the following sections:
+Use the following *a priori* markers in the following section:
 ```{r}
-
+# From https://satijalab.org/seurat/articles/pbmc3k_tutorial.html
+canonical_markers <- list(
+  T_CD4_naive = c("IL7R", "CCR7"),
+  T_CD4_memory = c("IL7R", "S100A4"),
+  T_CD8 = "CD8A",
+  NK = c("GNLY", "NKG7"),
+  B = "MS4A1",
+  DC = c("FCER1A", "CST3"),
+  Mono_CD14 = c("CD14", "LYZ"),
+  Mono_FCGR3A = c("FCGR3A", "MS4A7"),
+  Platelet = c("PPBP")
+)
 ```
-
 
 ## 1.1 - Visualize individual markers
 
 ### FeaturePlot
 
+Below we use FeaturePlot to plot the normalized expression levels of the markers for CD14+ Monocytes and FCGR3A+ Monocytes. Edit this chunk to plot additional plots for each remaining cell type label in the marker list.
 ```{r}
-
+FeaturePlot(obj, features = canonical_markers$Mono_CD14)
+FeaturePlot(obj, features = canonical_markers$Mono_FCGR3A)
 ```
 
 ### VlnPlot
 
 ```{r}
-
+VlnPlot(obj, features = canonical_markers$Mono_CD14)
+VlnPlot(obj, features = canonical_markers$Mono_FCGR3A)
 ```
 
 ### DotPlot
 
 ```{r}
+DotPlot(obj, features = canonical_markers$Mono_CD14)
+DotPlot(obj, features = canonical_markers$Mono_FCGR3A)
+```
 
+Here's a quick way to visualize all the markers for all cell types at once.
+```{r}
+DotPlot(obj, features = unique(unlist(canonical_markers))) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+```
+
+Discuss with your partner:
+  - What are the pros and cons of each visualization method? And which do you like best?
+  - Is there any overlap in the expression of marker genes across different labels?
+  - Briefly, try to label each of unsupervised clusters based on the information you have so far. Enter your results below:
+  
+```{r}
+label.canonical_markers <- vector(
+  "0" = "enter_label_here",
+  "1" = "enter_another_label_here",
+  # add additional clusters as needed
+)
 ```
 
 
 ## 1.2 - Visualize group signatures
 
+Use these markers for this section:
+```{r}
+# See here("04_markers+annotation/get_pbmc3k_markers.R") for code to generate these markers
+pbmc3k_marker_list <- read_rds(file = here("04_markers+annotation/pbmc3k_markers.rds"))
+```
+
 ### Calculate UCell module score for each cell type in the marker list
 
 ```{r}
-
+# Adds a new metadata column for each name in the named list of genes given with "_UCell appended to the end
+obj <- AddModuleScore_UCell(obj, features = pbmc3k_marker_list)
 ```
 
 ### Plot FeaturePlots split across each label
-
 ```{r}
-
+for (feature in paste0(names(pbmc3k_marker_list), "_UCell")) {
+  print(FeaturePlot(obj, features = feature))
+}
 ```
 
 ### Plot a DotPlot for each module score
 
 ```{r}
-
+DotPlot(obj, features = sort(paste0(names(pbmc3k_marker_list), "_UCell"))) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 ```
 
+Discuss with your partner:
+  - What are the pros and cons of each visualization method? And which do you like best?
+  - Is there any overlap in the expression of marker genes across different labels?
+  - Briefly, try to label each of unsupervised clusters based on the information you have so far. Enter your results below:
+  
+```{r}
+label.canonical_markers <- vector(
+  "0" = "enter_label_here",
+  "1" = "enter_another_label_here",
+  # add additional clusters as needed
+)
+```
 
 ***
 
@@ -252,13 +312,27 @@ Use the following *a priori* markers in the following sections:
 ## 2.1 - Find one-vs-all markers for each unsupervised cluster
 
 ```{r}
-
+denovo_markers.all <- FindAllMarkers(obj, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
 ```
+
+```{r}
+View(denovo_markers.all)
+```
+
+Pull out only the top 10 markers based on logFC
+```{r}
+denovo_markers.top10 <- denovo_markers.all %>%
+  group_by(cluster) %>%
+  arrange(desc(avg_log2FC)) %>%
+  slice_head(n = 10)
+```
+
 
 ## 2.2 - Plot heatmap of all markers
 
 ```{r}
-
+DoHeatmap(obj, features=denovo_markers.top10$gene) +
+  theme(axis.text.y = element_text(size=4))
 ```
 
 ## 2.3 - Custom GO analysis dotplot
@@ -270,5 +344,23 @@ Use the following *a priori* markers in the following sections:
 ***
 
 # 3 - Automated cell type annotation methods
+
+## 3.1 - SingleR
+
+Choosing a reference
+```{r}
+browseVignettes("celldex")
+ref <- MonacoImmuneData()
+```
+
+Run SingleR
+```{r}
+singler_out <- SingleR(test = obj, ref = ref, labels = ref$label.main)
+```
+
+
+
+## 3.2 - Azimuth
+
 
 
