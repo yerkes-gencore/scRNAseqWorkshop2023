@@ -15,11 +15,14 @@ library(Seurat)
 library(UCell)
 library(SingleR)
 library(celldex)
+library(scran)
+library(scater)
+library(viridis)
 ```
 
 ## Downloading the necessary files
 
-Make sure that you've downloaded a zip of the github repo [INSERT URL HERE] and unzip it somewhere on your computer (e.g. in your `Desktop` directory).
+Make sure that you've downloaded a zip of the github repo https://github.com/yerkes-gencore/scRNAseqWorkshop2023 and unzip it somewhere on your computer (e.g. in your `Desktop` directory).
 
 If you want to keep working in the directory you created last class, simple copy and paste the `04_markers+annotation` folder into the base level of your existing directory.
 
@@ -56,6 +59,7 @@ Now that you've set up `here()` correctly, don't try to change directories using
 
 ```{r}
 source(here("03_QC_processing/03_helper_functions.R"))
+source(here("04_markers+annotation/04-helper_functions.R"))
 ```
 
 
@@ -63,13 +67,13 @@ source(here("03_QC_processing/03_helper_functions.R"))
 
 # 1 - Review of QC pre-processing steps
 
-Pair up into groups of two. What is the youngest person's birthday month? Choose the sample based on the month, i.e. if they were born in January, choose `s101_ctrl.h5`, if they were born in April, choose `s107_stim.h5`. 
+Pair up into groups of two. What is the youngest person's birthday month? Choose the file based on the month and order the file appears in the file pane, i.e. if they were born in January, choose `s101_ctrl.h5`, if they were born in April, choose `s107_stim.h5`. 
 
 ## Read in h5 file, QC filtering, normalizing and scaling
 Change QC filtering thresholds as desired. The thresholds given are just examples.
 ```{r}
 # Read in data
-obj <- Read10X_h5(here('Data/kang/s101_ctrl.h5'))
+obj <- Read10X_h5(here('Data/kang/ENTER_SAMPLE_ID_HERE.h5'))
 obj <- CreateSeuratObject(obj)
 
 # Add metadata columns for QC
@@ -147,6 +151,8 @@ Manually adjust thresholds and re-plot with new thresholds if desired. [Skip thi
 Subset based on desired thresholds
 ```{r}
 obj <- subset(obj, subset = outlier_cutoffs == FALSE)
+# Also remove doublets
+obj <- subset(obj, subset = scDblFinder.class == "singlet")
 ```
 
 ## Find neighbors and choose cluster resolution
@@ -187,16 +193,16 @@ View(obj@meta.data)
 Plot a few different resolutions with `DimPlot()`. Do you prefer any in particular? If so, why?
 ```{r}
 DimPlot(obj, group.by = "RNA_snn_res.0.2", label = TRUE)
-DimPlot(obj, group.by = "RNA_snn_res.0.4", label = TRUE)
-DimPlot(obj, group.by = "RNA_snn_res.0.6", label = TRUE)
-DimPlot(obj, group.by = "RNA_snn_res.0.8", label = TRUE)
-DimPlot(obj, group.by = "RNA_snn_res.1", label = TRUE)
-DimPlot(obj, group.by = "RNA_snn_res.1.2", label = TRUE)
+DimPlot(obj, group.by = "INSERT_RES_NAME_HERE", label = TRUE)
+DimPlot(obj, group.by = "INSERT_RES_NAME_HERE", label = TRUE)
+DimPlot(obj, group.by = "INSERT_RES_NAME_HERE", label = TRUE)
+DimPlot(obj, group.by = "INSERT_RES_NAME_HERE", label = TRUE)
+DimPlot(obj, group.by = "INSERT_RES_NAME_HERE", label = TRUE)
 ```
 
 Choose one cluster resolution as the new cell identities so we have it saved for downstream processing
 ```{r}
-Idents(obj) <- "RNA_snn_res.0.8"
+Idents(obj) <- "INSERT_RES_NAME_HERE"
 ```
 
 ***
@@ -227,17 +233,18 @@ Below we use FeaturePlot to plot the normalized expression levels of the markers
 ```{r}
 FeaturePlot(obj, features = canonical_markers$Mono_CD14)
 FeaturePlot(obj, features = canonical_markers$Mono_FCGR3A)
+FeaturePlot(obj, features = canonical_markers$INSERT_CELL_TYPE_HERE)
 ```
 
 ### VlnPlot
-
+Edit this chunk to plot additional plots for each remaining cell type label in the marker list.
 ```{r}
 VlnPlot(obj, features = canonical_markers$Mono_CD14)
 VlnPlot(obj, features = canonical_markers$Mono_FCGR3A)
 ```
 
 ### DotPlot
-
+Edit this chunk to plot additional plots for each remaining cell type label in the marker list.
 ```{r}
 DotPlot(obj, features = canonical_markers$Mono_CD14)
 DotPlot(obj, features = canonical_markers$Mono_FCGR3A)
@@ -248,20 +255,6 @@ Here's a quick way to visualize all the markers for all cell types at once.
 DotPlot(obj, features = unique(unlist(canonical_markers))) + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
 ```
-
-Discuss with your partner:
-  - What are the pros and cons of each visualization method? And which do you like best?
-  - Is there any overlap in the expression of marker genes across different labels?
-  - Briefly, try to label each of unsupervised clusters based on the information you have so far. Enter your results below:
-  
-```{r}
-label.canonical_markers <- vector(
-  "0" = "enter_label_here",
-  "1" = "enter_another_label_here",
-  # add additional clusters as needed
-)
-```
-
 
 ## 1.2 - Visualize group signatures
 
@@ -285,6 +278,7 @@ for (feature in paste0(names(pbmc3k_marker_list), "_UCell")) {
 }
 ```
 
+
 ### Plot a DotPlot for each module score
 
 ```{r}
@@ -298,10 +292,10 @@ Discuss with your partner:
   - Briefly, try to label each of unsupervised clusters based on the information you have so far. Enter your results below:
   
 ```{r}
-label.canonical_markers <- vector(
+label.canonical_markers <- c(
   "0" = "enter_label_here",
   "1" = "enter_another_label_here",
-  # add additional clusters as needed
+  # do for additional clusters as needed
 )
 ```
 
@@ -319,6 +313,8 @@ denovo_markers.all <- FindAllMarkers(obj, only.pos = TRUE, min.pct = 0.25, logfc
 View(denovo_markers.all)
 ```
 
+## 2.2 - Plot heatmap of all markers
+
 Pull out only the top 10 markers based on logFC
 ```{r}
 denovo_markers.top10 <- denovo_markers.all %>%
@@ -327,19 +323,11 @@ denovo_markers.top10 <- denovo_markers.all %>%
   slice_head(n = 10)
 ```
 
-
-## 2.2 - Plot heatmap of all markers
-
 ```{r}
 DoHeatmap(obj, features=denovo_markers.top10$gene) +
   theme(axis.text.y = element_text(size=4))
 ```
 
-## 2.3 - Custom GO analysis dotplot
-
-```{r}
-# refer to helper functions script
-```
 
 ***
 
@@ -347,20 +335,187 @@ DoHeatmap(obj, features=denovo_markers.top10$gene) +
 
 ## 3.1 - SingleR
 
-Choosing a reference
+### Choosing a reference
 ```{r}
 browseVignettes("celldex")
-ref <- MonacoImmuneData()
+ref <- ## see vignette to pick a reference and use data function to download/load it
 ```
 
-Run SingleR
+### Run SingleR
 ```{r}
-singler_out <- SingleR(test = obj, ref = ref, labels = ref$label.main)
+# Run SingleR on normalized counts
+singler_out <- SingleR(test = obj@assays$RNA@data, ref = ref, labels = ref$label.main)
+
+# Add labels to the seurat object's metadata
+obj$SingleR_labels <- singler_out$labels
+obj$SingleR_pruned.labels <- singler_out$pruned.labels
+obj$SingleR_delta.next <- singler_out$delta.next
 ```
 
+### Plot diagnostics
+
+labels in UMAP space
+```{r}
+DimPlot(obj, group.by = "SingleR_pruned.labels") +
+  DimPlot(obj, group.by = "seurat_clusters", label=T)
+```
+
+plotScoreHeatmap
+```{r}
+plotScoreHeatmap(results = singler_out, labels.use = "pruned.labels", clusters = Idents(obj))
+```
+
+plotDeltaDistribution
+```{r}
+plotDeltaDistribution(results = singler_out, labels.use = "pruned.labels", show = "delta.next")
+```
+
+Plot heatmaps of the intersection of the markers for labels in the reference and markers for labels in the test data.
+```{r, fig.width = 18, fig.height = 12}
+# See: https://bioconductor.org/books/release/SingleRBook/annotation-diagnostics.html#based-on-marker-gene-expression
+
+all.markers <- metadata(singler_out)$de.genes
+empirical.markers <- findMarkers(obj@assays$RNA@data, obj$SingleR_labels, direction="up")
+
+collected <- list()
+for (lab in unique(singler_out$labels)) {
+    lab.markers <- unique(unlist(all.markers[[lab]]))
+    m <- match(lab.markers, rownames(empirical.markers[[lab]]))
+    m <- lab.markers[rank(m) <= 20]
+    collected[[lab]] <- plotHeatmap(as.SingleCellExperiment(obj), silent=TRUE, 
+        order_columns_by="SingleR_labels", main=lab, features=m)[[4]]
+}
+do.call(gridExtra::grid.arrange, collected)
+```
+
+### Compare unsupervised clusters with SingleR labels
+
+This is a custom function in the "04-helper_functions.R" script sourced at the beginning of this file.
+```{r}
+plotClusterAnnotTile(obj, labels = "SingleR_labels")
+```
+
+This is another custom function in the "04-helper_functions.R" script sourced at the beginning of this file.
+```{r, fig.width = 9, fig.height = 6}
+plotRefMapScoresFacet(obj, label_column = "SingleR_pruned.labels", 
+                      label_score_column = "SingleR_delta.next", 
+                      clusters_column = "seurat_clusters")
+```
 
 
 ## 3.2 - Azimuth
+
+### Write object to a file so you can upload to the web interface
+```{r}
+saveRDS(obj, here("04_markers+annotation/obj_postSingleR.rds"), compress = FALSE)
+```
+
+### Upload rds to Azimuth and run analysis using the PBMC reference
+
+1. Go to https://azimuth.hubmapconsortium.org
+
+2. Under `Human - PBMC` in the `References for scRNA-seq Queries` section, click `Learn More` and read the details.
+
+3. Under `Annotation Details` click on each celltype section. Which cell type labels are available?
+
+4. Click the yellow `App` button at the top of the `Human - PBMC` section.
+
+5. Upload the file you just saved and wait for the upload to complete, then under `Reference Metadata`, delete `celltype.l2` and pick `celltype.l1`, then click `Map cells to reference`.
+
+6. Navigate through the side panels to explore the results.
+
+7. In the `Download Results` side panel, click `Download` under `Predicted cell types and scores (TSV)`.
+
+
+### Read in Azimuth's predicted cell types and scores
+
+Move the .tsv of predicted cell types you just downloaded and scores to the R project, add these to the metadata, and run the same diagnostics as for SingleR.
+
+```{r}
+azimuth_pred <- read.delim('azimuth_pred.tsv', row.names = 1)
+obj <- AddMetaData(
+	object = obj,
+	metadata = azimuth_pred)
+```
+
+```{r}
+DimPlot(obj, group.by = "predicted.celltype.l1") +
+  DimPlot(obj, label=T)
+```
+
+```{r}
+plotClusterAnnotTile(obj, labels = "predicted.celltype.l1")
+```
+
+```{r, fig.width = 9, fig.height = 6}
+plotRefMapScoresFacet(obj, label_column = "predicted.celltype.l1", 
+                      label_score_column = "predicted.celltype.l1.score", 
+                      clusters_column = "seurat_clusters")
+```
+
+# 4 - Consensus labels
+
+## Assign new labels to clusters
+Based on all the evidence from the above analyses, work with your partner to decide on how to assign labels to each cluster
+```{r}
+obj$consensus_labels <- obj$seurat_clusters
+Idents(obj) <- "consensus_labels"
+
+obj <- RenameIdents(
+  obj,
+  "0" = "new_label",
+  "1" = "another_new_label",
+  "3" = "yet_another_new_label",
+  "4" = "and_so_on",
+  #... etc.
+)
+```
+
+```{r}
+DimPlot(obj, group.by = "consensus_labels")
+```
+
+## Find Markers for these new labels and check manually
+
+```{r}
+denovo_markers.all <- FindAllMarkers(obj, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+```
+
+```{r}
+View(denovo_markers.all)
+```
+
+```{r}
+denovo_markers.top10 <- denovo_markers.all %>%
+  group_by(cluster) %>%
+  arrange(desc(avg_log2FC)) %>%
+  slice_head(n = 10)
+
+DoHeatmap(obj, features=denovo_markers.top10$gene) +
+  theme(axis.text.y = element_text(size=4))
+```
+
+
+# 5 - Conclusion
+
+Discuss the following questions with your partner:
+
+1. Are you satisfied with the consensus cell type annotations? Why or why not?
+
+2. Which annotation methods did you find most useful? Which did you rely on most when you were assigning consensus labels?
+
+3. Are you satisfied with your initial choice of cluster resolution? How would you go about evaluating which cluster resolution to choose more concretely?
+
+
+# 6 - Optional Bonus: Coding challenges!
+
+Work on this alone or in groups.
+
+1. In these exercises, we used the most coarse-grain labels available in our celldex and Azimuth references. Try one (or both!) using the finer-grain labels available.
+
+2. Do these finer-grained labels change how you would assign consensus labels? Recycle and adjust your code from Section 4 as needed.
+
+3. Try at least one other cluster resolution with these finer-grained labels. Again, rename your clusters as desired.
 
 
 
