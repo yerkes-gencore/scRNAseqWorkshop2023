@@ -1,0 +1,66 @@
+---
+title: "scRNAseq Markers and Cell annotation"
+author: "Me!"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(Seurat)
+library(SeuratData)
+library(UCell)
+library(SingleR)
+library(celldex)
+library(here)
+source(here("03_QC_processing/03_helper_functions.R"))
+```
+
+```{r}
+plotMarkerVolcano <- function (markers, n_labels = 20, FCcutoff = 0.25, pCutoff = 0.05, 
+                               title = NULL, caption = NULL, subtitle = NULL, ...) {
+    volData <- markers[!is.na(markers$p_val_adj), ]
+    if (is.numeric(n_labels)) {
+      labels <- volData %>%
+        rownames_to_column(var = "Gene") %>%
+        arrange(p_val_adj) %>%
+        filter(p_val_adj <= pCutoff,
+               abs(avg_log2FC) >= FCcutoff) %>%
+        slice_head(n = n_labels) %>%
+        pull(Gene)
+        # volData <- volData[order(volData$p_val_adj), ]
+        # labels <- rownames(volData[1:labels, ])
+    } else {
+      labels <- NULL
+    }
+    volplot <- EnhancedVolcano::EnhancedVolcano(volData, x = "avg_log2FC", 
+        y = "p_val_adj", lab = rownames(volData), selectLab = labels, 
+        drawConnectors = TRUE, colConnectors = "lightgrey", pCutoff = pCutoff, 
+        FCcutoff = FCcutoff, title = title, caption = caption, 
+        subtitle = subtitle, ...)
+    return(volplot)
+}
+```
+
+
+```{r}
+DimPlot(pbmc3k.final, label = T) + theme(aspect.ratio = 1) + NoLegend()
+```
+
+```{r}
+markers.pw <- FindMarkers(pbmc3k.final, ident.1 = "CD14+ Mono", ident.2 = "FCGR3A+ Mono", logfc.threshold = -Inf)
+```
+
+```{r, fig.width = 6, fig.height=6}
+plotMarkerVolcano(markers = markers.pw, n_labels = 5)
+```
+
+```{r}
+markers.all <- FindAllMarkers(pbmc3k.final, logfc.threshold = -Inf)
+```
+
+```{r}
+plotMarkerVolcano(markers = markers.all %>% filter(cluster == "CD14+ Mono"), n_labels = 5)
+```
+
+
