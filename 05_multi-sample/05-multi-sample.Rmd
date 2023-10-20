@@ -1,0 +1,36 @@
+---
+title: "scRNAseq Markers and Cell annotation"
+author: "Me!"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 0 - Project Setup
+
+## Load packages
+
+```{r}
+library(tidyverse)
+library(Seurat)
+library(UCell)
+library(SingleR)
+library(celldex)
+library(scran)
+library(scater)
+library(viridis)
+library(here)
+source(here("03_QC_processing/03_helper_functions.R"))
+source(here("04_markers+annotation/04-helper_functions.R"))
+```
+
+## Downloading the necessary files
+
+Make sure that you've downloaded a zip of the github repo https://github.com/yerkes-gencore/scRNAseqWorkshop2023 and unzip it somewhere on your computer (e.g. in your `Desktop` directory).
+
+If you want to keep working in the directory you created last class, simple copy and paste the `05_multi-sample` folder into the base level of your existing directory.
+
+If you'd like to start fresh in a clean working directory, you can simply work from the newly unzipped folder.
+
+*Note: If you are comfortable using git (beyond the scope of this workshop) and are already working within a local clone of the repo, you can skip the above and simply `git pull` the repo.*
+
+
