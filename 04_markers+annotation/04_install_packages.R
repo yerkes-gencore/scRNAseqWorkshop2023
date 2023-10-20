@@ -4,10 +4,10 @@ cran_packages <- c(
 )
 
 bioc_packages <- c(
-  "UCell"
-  "SingleR"
-  "celldex"
-  "scran"
+  "UCell",
+  "SingleR",
+  "celldex",
+  "scran",
   "scater"
 )
 
