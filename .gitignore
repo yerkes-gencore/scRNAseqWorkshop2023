@@ -11,8 +11,6 @@
 *.html
 
 # R Data files
-*.rds
-*.Rds
 
 # plot files
 *.png
