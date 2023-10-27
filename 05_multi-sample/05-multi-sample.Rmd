@@ -111,3 +111,56 @@ DimPlot(merged_obj, group.by = 'capID') + DimPlot(merged_obj, group.by = 'consen
 If not, time to integrate
 
 # Seurat integration
+
+Recreating the list of separate captures. This has the benefit of retaining 
+the modified cell barcodes and added metadata from creating the merged object
+
+```{r}
+objs <- SplitObject(merged_obj, split.by = 'capID')
+```
+
+Choose which features to use when integrating
+
+```{r}
+anchor_features <- SelectIntegrationFeatures(objs)
+## This is just a list of genes
+head(anchor_features)
+```
+
+We need to make sure the values for anchors are scaled within each object, and
+perform PCA using the anchors as features.
+
+```{r}
+## Is this necessary?
+# objs <- lapply(objs, ScaleData, features = anchor_features)
+# objs <- lapply(objs, RunPCA, features = anchor_features, 
+               # reduction.key = 'int_anchor_PCA', reduction.name = 'int_anchor_PCA')
+```
+
+Now identify integration anchors
+
+```{r}
+integration_anchors <- FindIntegrationAnchors(objs,
+                                              anchor.features = anchor_features,
+                                              scale = FALSE,
+                                              normalization.method = 'LogNormalize',
+                                              reduction = 'rpca',
+                                              dims = 1:30)
+```
+
+```{r}
+integrated_obj <- IntegrateData(anchorset = integration_anchors,
+                                normalization.method = 'LogNormalize')
+```
+
+```{r}
+integrated_obj <- integrated_obj %>%
+  ScaleData() %>%
+  RunPCA() %>%
+  RunUMAP(dims = 1:30)
+```
+
+```{r}
+DimPlot(integrated_obj, group.by = 'capID')
+```
+
