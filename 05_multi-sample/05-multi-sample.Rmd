@@ -23,7 +23,7 @@ source(here("03_QC_processing/03_helper_functions.R"))
 source(here("04_markers+annotation/04-helper_functions.R"))
 ```
 
-## Downloading the necessary files
+# Downloading the necessary files
 
 Make sure that you've downloaded a zip of the github repo https://github.com/yerkes-gencore/scRNAseqWorkshop2023 and unzip it somewhere on your computer (e.g. in your `Desktop` directory).
 
@@ -33,4 +33,81 @@ If you'd like to start fresh in a clean working directory, you can simply work f
 
 *Note: If you are comfortable using git (beyond the scope of this workshop) and are already working within a local clone of the repo, you can skip the above and simply `git pull` the repo.*
 
+## Read in processed objects
 
+We'll start working with objects in lists, since we may have many captures we need to integrate.
+Recall that each capture should be processed independently, so it should probably be it's own object.
+
+```{r}
+objs <- list()
+objs$s101_stim <- readRDS(here('saved_rds/04/s101_stim_annotated.rds'))
+objs$s101_ctrl <- readRDS(here('saved_rds/04/s101_ctrl_annotated.rds'))
+```
+
+We can now use the 'apply()' family of functions to perform operations on 
+every object in the list. 
+
+```{r}
+## See the documentation on the apply family for more details on implementation
+## ?apply
+lapply(objs, DimPlot, group.by = 'seurat_clusters')
+```
+
+Recall that UMAP space is arbitrary and specific to a capture. Comparing
+the relative position of similar celltypes between captures is uninformative
+at this stage. 
+
+```{r}
+lapply(objs, DimPlot)
+```
+
+# Merging multiple objects
+
+We will start by merging our objects into one object. We also add a metadata
+column so each cell is tagged with it's original capture. With this information,
+we can always split the objects back out, and we can see the success of our 
+integration. 
+
+```{r}
+## adding metadata based on the names we gave the objects when loading them
+for (capture.ID in names(objs)){
+  objs[[capture.ID]]$capID <- capture.ID
+}
+## Seurat extends the base merge() function to work on lists of Seurat objects
+## Adding cell IDs prevents possible collisions in barcodes across captures
+merged_obj <- merge(objs[[1]], y = objs[2:length(objs)], add.cell.ids = names(objs))
+```
+
+Our merged object should now have all the cells and genes from the split objects
+
+```{r}
+lapply(objs, dim)
+
+print('merged_obj')
+dim(merged_obj)
+```
+
+However, simply merging captures is often insufficient to analyze them together.
+Variation between captures is often stronger than variation between celltypes, 
+causing merged objects to cluster by original capture rather than shared celltypes.
+
+```{r}
+## We use a piped (%>%) workflow to quickly apply many functions to the same object
+## without needing to write the object out between each step, slightly improving efficiency
+merged_obj <- NormalizeData(merged_obj, normalization.method = 'LogNormalize') %>%
+  ScaleData() %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  RunPCA(npcs = 50) %>%
+  FindNeighbors(dims = 1:30) %>%
+  RunUMAP(dims = 1:30)
+```
+
+Are similar celltypes clustering together across captures?
+
+```{r, fig.width=10}
+DimPlot(merged_obj, group.by = 'capID') + DimPlot(merged_obj, group.by = 'consensus_labels')
+```
+
+If not, time to integrate
+
+# Seurat integration
