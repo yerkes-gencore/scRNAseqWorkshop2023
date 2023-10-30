@@ -15,7 +15,7 @@ library(harmony)
 library(here)
 library(Seurat)
 library(tidyverse)
-
+set.seed(43)
 source(here("05_multi-sample/05-helper_functions.R"))
 ```
 
@@ -69,7 +69,7 @@ lapply(objs, DimPlot)
 
 We will start by merging our objects into one object. We also add a metadata
 column so each cell is tagged with it's original capture. With this information,
-we can always split the objects back out, and we can see the success of our 
+we can always split the captures back out, and we can see the success of our 
 integration. 
 
 ```{r}
@@ -91,9 +91,11 @@ print('merged_obj')
 dim(merged_obj)
 ```
 
-However, simply merging captures is often insufficient to analyze them together.
-Variation between captures is often stronger than variation between celltypes, 
-causing merged objects to cluster by original capture rather than shared celltypes.
+We want to identify shared populations of cells between captures and analyze
+changes in expression for similar populations. However, simply merging captures 
+is often insufficient to analyze them together. Variation between captures is 
+often stronger than variation between celltypes, causing merged objects to 
+cluster by capture or condition rather than shared celltypes.
 
 ```{r}
 ## We use a piped (%>%) workflow to quickly apply many functions to the same object
@@ -107,7 +109,8 @@ merged_obj <- NormalizeData(merged_obj, normalization.method = 'LogNormalize') %
   FindClusters()
 ```
 
-Are similar celltypes clustering together across captures?
+Look at the clusters in the merged object. Are cells from multiple captures
+blending seamlessly within captures? 
 
 ```{r, fig.width=12, fig.height=6}
 DimPlot(merged_obj, group.by = 'capID') + DimPlot(merged_obj, group.by = 'consensus_labels')
@@ -117,14 +120,13 @@ DimPlot(merged_obj, group.by = 'capID') + DimPlot(merged_obj, group.by = 'consen
 DimPlot(merged_obj, split.by = 'capID', ncol = 3)
 ```
 
-
-
 If not, time to integrate
 
 ## Seurat integration
 
-Recreating the list of separate captures. This has the benefit of retaining 
-the modified cell barcodes and added metadata from creating the merged object
+Recreating the list of separate captures from our merged object. This has the
+benefit of retaining the modified cell barcodes and added metadata from creating
+the merged object.
 
 ```{r}
 objs <- SplitObject(merged_obj, split.by = 'capID')
@@ -223,19 +225,63 @@ obj <- ??? ## chose one of merged_object, seurat_integrated_obj, or harmony_inte
 ## rm(unwanted_obj)
 ```
 
+## Assign integrated cluster identities
+
+In practice, you should use the workflow from the previous session to thoroughly
+evaluate markers and assign celltypes. Here we will use a truncated workflow
+to quickly gloss over this and get to differential expression.
+
+```{r}
+DimPlot(obj, label = TRUE)
+```
+
+
+```{r, fig.width = 9, fig.height = 10, warning = FALSE}
+plotRefMapScoresFacet(obj, label_column = "SingleR_pruned.labels", 
+                      label_score_column = "SingleR_delta.next", 
+                      clusters_column = "seurat_clusters")
+```
+
+```{r}
+obj$consensus_labels <- obj$seurat_clusters
+Idents(obj) <- "consensus_labels"
+
+obj <- RenameIdents(
+  obj,
+  "0" = "t cells",
+  "1" = "monocytes",
+  "2" = "t cells",
+  "3" = "t cells",
+  "4" = "b cells",
+  "5" = "t cells",
+  "6" = "NK cells",
+  "7" = "monocytes",
+  "8" = "Unknown",
+  "9" = "b cells",
+  "10" = "b cells",
+  "11" = "Unknown",
+  "12" = "Unknown",
+  "13" = "Dendritic cells"
+)
+obj$consensus_labels <- Idents(obj)
+```
+
+```{r}
+DimPlot(obj, group.by = 'consensus_labels', label = TRUE)
+```
+
 
 # 2 - Differential expression
 
-Now that we have our captures successfully integrated/merged, we can identify
-shared populations between our captures and perform differential expression
-between conditions.
+Now that we have our captures successfully integrated/merged and we've identified
+shared cell populations, we can perform differential expression across conditions.
 
 First, we'll add metadata for our conditions in case it hasn't already been
 added.
 
 ```{r}
 ## We can just take the end of the capID 
-obj$condition <- substr(obj$capID, start = 6, stop = 9)
+obj$condition <- stringr::str_sub(obj$capID, start = -4)
 ```
 
 Then run Seurat's FindMarkers, focusing on a specific cluster and the comparison
@@ -246,7 +292,7 @@ cluster_dge <- FindMarkers(obj,
                            group.by = 'condition',
                            ident.1 = 'stim',
                            ident.2 = 'ctrl',
-                           subset.ident = '5', ## Chose a cluster here, e.g. 1
+                           subset.ident = 'NK cells', ## Chose an Ident here
                            test.use = 'wilcox',
                            logfc.threshold = 0.0,
                            min.pct = .1,
@@ -266,13 +312,16 @@ cluster_dge
 It's a good idea to visualize the observed values to see if they match what you
 can visibly detect.
 
-```{r, fig.width=10, warning = FALSE}
+```{r, fig.width=10}
 VlnPlot(obj, features = head(rownames(cluster_dge),3),
-        group.by = 'seurat_clusters', split.by = 'condition')
+        group.by = 'seurat_clusters', split.by = 'condition',
+        ncol = 1)
+```
 
-## Seurat's violin plot function is a little limited, so we have a custom function
-## to focus on the cells of interest (see the helper script for more details).
+Seurat's violin plot function is a little limited, so we have a custom function
+to focus on the cells of interest (see the helper script for more details).
 
+```{r, fig.height=4, warning = FALSE}
 gcoreVlnPlot(obj, 
              genes = head(rownames(cluster_dge),3),
              subset = '5', 
@@ -291,5 +340,79 @@ suggest strong change.
 generateVolcanoPlot(cluster_dge, labels = 20, pCutoff = 0.05, FCcutoff = log2(1.3))
 ```
 
+# 3 - GSEA: Gene set enrichment analysis
 
+Gene Set Enrichment Analysis (GSEA) is a computational method that determines 
+whether an a priori defined set of genes shows statistically significant,
+concordant differences between two biological states (e.g. phenotypes). 
+GSEA takes a list of genes ranked by some metric (often the 
+magnitude/significance, and direction of differential expression between two 
+groups) and a set of pathway definitions. Enrichment can be loosely interpreted 
+as collective up or down regulation of a pathway. Pathways can be any set of 
+genes, including custom ones for your study. We often uses genesets from the 
+[Molecular Signatures Database](https://www.gsea-msigdb.org/gsea/msigdb/index.jsp).
+For GSEA performed on differential expression outputs, a positive enrichment 
+score indiciates the pathway is enriched in the first group
+of a differential expression comparison, while a negative enrichment score means
+the pathway is enriched in the second group.
+
+For example, if differentially expressed genes are calculated between a 
+'treatment' and 'control' group, where positive log-fold change
+indicates the gene is more highly expressed in the 'treatment' group, a 
+positive enrichment score means the pathway is enriched in the 'treatment' group. 
+
+You can read more details on GSEA [here](https://www.pnas.org/doi/10.1073/pnas.0506580102)
+
+```{r}
+## Installing and loading packages
+if (!require('fgsea')) {
+  BiocManager::install('fgsea')
+}
+library(fgsea)
+
+if (!require('msigdbr')) {
+  install.packages('msigdbr')
+}
+library(msigdbr)
+```
+
+```{r}
+## you can see more available datasets on the website, or via the command:
+## msigdbr::msigdbr_collections()
+## Some collections are available for other species, see the command:
+## msigdbr::msigdbr_species()
+hallmark_pathways <- msigdbr(species = "human", category = "H")
+hallmark_pathways <- hallmark_pathways %>% 
+  select(gene_symbol, gs_name) %>%
+  unstack()
+hallmark_pathways$HALLMARK_INFLAMMATORY_RESPONSE
+```
+
+```{r}
+prepare_gsea_stats <- function(dge_result){
+  ## Why +.Machine$double.xmin? Some p-values are below the smallest possible 
+  ## value in R, which R rounds to 0, which causes some issues with calculations.
+  ## We add the smallest possible value to all p-values to make them non-zero.
+  stat <- dge_result$avg_log2FC * -log10(dge_result$p_val_adj + .Machine$double.xmin)
+  ## There are differing opinions on the best stat to use for GSEA with single-cell
+  ## data. Another approach is to use only the logFC value, which assumes some
+  ## shrinkage due to the estimated significance. However, seurat's base
+  ## fold-change calculation is pretty rudimentary, and this approach should
+  ## help weight genes based on the consistency of differential expression. 
+  stat <- setNames(stat, nm = rownames(dge_result))
+  ## GSEA expects a named sorted list
+  stat <- sort(stat)
+  stat
+}
+```
+
+```{r}
+gsea_results <- fgsea::fgseaSimple(pathways = hallmark_pathways, 
+                                   stats = prepare_gsea_stats(cluster_dge),
+                                   nperm = 1000)
+```
+
+```{r}
+arrange(gsea_results, pval)
+```
 
