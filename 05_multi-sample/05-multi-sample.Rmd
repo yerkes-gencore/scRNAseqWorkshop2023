@@ -10,20 +10,16 @@ output: html_document
 ## Load packages
 
 ```{r}
-library(tidyverse)
-library(Seurat)
-library(UCell)
-library(SingleR)
-library(celldex)
-library(scran)
-library(scater)
-library(viridis)
+library(EnhancedVolcano)
+library(harmony)
 library(here)
-source(here("03_QC_processing/03_helper_functions.R"))
-source(here("04_markers+annotation/04-helper_functions.R"))
+library(Seurat)
+library(tidyverse)
+
+source(here("05_multi-sample/05-helper_functions.R"))
 ```
 
-# Downloading the necessary files
+## Downloading the necessary files
 
 Make sure that you've downloaded a zip of the github repo https://github.com/yerkes-gencore/scRNAseqWorkshop2023 and unzip it somewhere on your computer (e.g. in your `Desktop` directory).
 
@@ -42,6 +38,12 @@ Recall that each capture should be processed independently, so it should probabl
 objs <- list()
 objs$s101_stim <- readRDS(here('saved_rds/04/s101_stim_annotated.rds'))
 objs$s101_ctrl <- readRDS(here('saved_rds/04/s101_ctrl_annotated.rds'))
+
+objs$s1488_stim <- readRDS(here('saved_rds/04/s1488_stim_annotated.rds'))
+objs$s1488_ctrl <- readRDS(here('saved_rds/04/s1488_ctrl_annotated.rds'))
+
+objs$s1016_stim <- readRDS(here('saved_rds/04/s1016_stim_annotated.rds'))
+objs$s1016_ctrl <- readRDS(here('saved_rds/04/s1016_ctrl_annotated.rds'))
 ```
 
 We can now use the 'apply()' family of functions to perform operations on 
@@ -61,7 +63,9 @@ at this stage.
 lapply(objs, DimPlot)
 ```
 
-# Merging multiple objects
+# 1 - Working with multiple captures
+
+## Merging objects
 
 We will start by merging our objects into one object. We also add a metadata
 column so each cell is tagged with it's original capture. With this information,
@@ -99,18 +103,25 @@ merged_obj <- NormalizeData(merged_obj, normalization.method = 'LogNormalize') %
   FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
   RunPCA(npcs = 50) %>%
   FindNeighbors(dims = 1:30) %>%
-  RunUMAP(dims = 1:30)
+  RunUMAP(dims = 1:30) %>%
+  FindClusters()
 ```
 
 Are similar celltypes clustering together across captures?
 
-```{r, fig.width=10}
+```{r, fig.width=12, fig.height=6}
 DimPlot(merged_obj, group.by = 'capID') + DimPlot(merged_obj, group.by = 'consensus_labels')
 ```
 
+```{r, fig.width=12}
+DimPlot(merged_obj, split.by = 'capID', ncol = 3)
+```
+
+
+
 If not, time to integrate
 
-# Seurat integration
+## Seurat integration
 
 Recreating the list of separate captures. This has the benefit of retaining 
 the modified cell barcodes and added metadata from creating the merged object
@@ -127,16 +138,6 @@ anchor_features <- SelectIntegrationFeatures(objs)
 head(anchor_features)
 ```
 
-We need to make sure the values for anchors are scaled within each object, and
-perform PCA using the anchors as features.
-
-```{r}
-## Is this necessary?
-# objs <- lapply(objs, ScaleData, features = anchor_features)
-# objs <- lapply(objs, RunPCA, features = anchor_features, 
-               # reduction.key = 'int_anchor_PCA', reduction.name = 'int_anchor_PCA')
-```
-
 Now identify integration anchors
 
 ```{r}
@@ -149,18 +150,146 @@ integration_anchors <- FindIntegrationAnchors(objs,
 ```
 
 ```{r}
-integrated_obj <- IntegrateData(anchorset = integration_anchors,
+seurat_integrated_obj <- IntegrateData(anchorset = integration_anchors,
                                 normalization.method = 'LogNormalize')
 ```
 
 ```{r}
-integrated_obj <- integrated_obj %>%
+seurat_integrated_obj <- seurat_integrated_obj %>%
   ScaleData() %>%
   RunPCA() %>%
-  RunUMAP(dims = 1:30)
+  RunUMAP(dims = 1:30) %>%
+  FindNeighbors(dims = 1:30) %>%
+  FindClusters()
+```
+
+How does this compare to merging? Do we see more overlap of captures?
+
+```{r, fig.height=6, fig.width=12}
+DimPlot(seurat_integrated_obj, group.by = 'capID') + DimPlot(seurat_integrated_obj, group.by = 'consensus_labels')
+```
+
+
+```{r, fig.width=12}
+DimPlot(seurat_integrated_obj, split.by = 'capID', ncol = 3)
+```
+
+## Harmony integration
+
+```{r}
+harmony_integrated_obj <- RunHarmony(
+  merged_obj,
+  group.by.vars = 'capID',
+  reduction.save = 'harmony',
+  max_iter = 20
+)
 ```
 
 ```{r}
-DimPlot(integrated_obj, group.by = 'capID')
+harmony_integrated_obj
+harmony_integrated_obj@reductions$harmony[1:5,1:5]
+dim(harmony_integrated_obj@reductions$harmony)
 ```
+
+Similar to PCA, harmony reduction gives us many dimensions. We'll need to run
+UMAP to make a good 2d visualization.
+
+```{r}
+harmony_integrated_obj <- RunUMAP(harmony_integrated_obj, reduction = 'harmony', dims = 1:30) %>%
+  FindNeighbors(reduction = 'harmony', dims = 1:30) %>%
+  FindClusters()
+```
+
+How does this compare to Seurat integration? How does it compare to merging?
+
+```{r, fig.width=12, fig.height=6}
+DimPlot(harmony_integrated_obj, group.by = 'capID') + 
+  DimPlot(harmony_integrated_obj, group.by = 'consensus_labels') 
+```
+
+```{r, fig.width=12}
+DimPlot(harmony_integrated_obj, split.by = 'capID', ncol = 3)
+```
+
+
+## Choose a method to move forward with
+
+Which technique looked best to you? Select one to move forward with. 
+You can remove the others from your environment if memory use is a concern.
+
+```{r}
+obj <- ??? ## chose one of merged_object, seurat_integrated_obj, or harmony_integrated_obj
+## Optional, remove the other objects from your environment, e.g.:
+## rm(unwanted_obj)
+```
+
+
+# 2 - Differential expression
+
+Now that we have our captures successfully integrated/merged, we can identify
+shared populations between our captures and perform differential expression
+between conditions.
+
+First, we'll add metadata for our conditions in case it hasn't already been
+added.
+
+```{r}
+## We can just take the end of the capID 
+obj$condition <- substr(obj$capID, start = 6, stop = 9)
+```
+
+Then run Seurat's FindMarkers, focusing on a specific cluster and the comparison
+of ctrl and stim cells in that cluster
+
+```{r}
+cluster_dge <- FindMarkers(obj,
+                           group.by = 'condition',
+                           ident.1 = 'stim',
+                           ident.2 = 'ctrl',
+                           subset.ident = '5', ## Chose a cluster here, e.g. 1
+                           test.use = 'wilcox',
+                           logfc.threshold = 0.0,
+                           min.pct = .1,
+                           only.pos = FALSE,
+                           assay = 'RNA')
+```
+
+DGE is calculated where a positive log-fold change (LFC) indicates greater expression 
+in ident.1, and a gene with negative LFC is more highly expressed in ident.2.
+
+```{r}
+cluster_dge
+```
+
+## Violin plots
+
+It's a good idea to visualize the observed values to see if they match what you
+can visibly detect.
+
+```{r, fig.width=10, warning = FALSE}
+VlnPlot(obj, features = head(rownames(cluster_dge),3),
+        group.by = 'seurat_clusters', split.by = 'condition')
+
+## Seurat's violin plot function is a little limited, so we have a custom function
+## to focus on the cells of interest (see the helper script for more details).
+
+gcoreVlnPlot(obj, 
+             genes = head(rownames(cluster_dge),3),
+             subset = '5', 
+             grouping_var = 'condition', groups = c('ctrl', 'stim'),
+             filter_zeros = FALSE)
+```
+
+## Volcano plto
+
+Volcano plots are a popular visualization to show an overview of transcriptional
+change between states. Lots of activity in the upper left and right quadrants 
+suggest strong change.
+
+```{r, fig.width=8, fig.height=6}
+## See helper functions script for more details 
+generateVolcanoPlot(cluster_dge, labels = 20, pCutoff = 0.05, FCcutoff = log2(1.3))
+```
+
+
 
