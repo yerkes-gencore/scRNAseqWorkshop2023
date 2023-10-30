@@ -3,7 +3,8 @@ cran_packages <- c(
   'harmony',
   'tidyverse',
   'Seurat',
-  'here'
+  'here',
+  'ggforce'
 )
 
 bioc_packages <- c(
