@@ -1,17 +1,13 @@
 
 cran_packages <- c(
-  'viridis',
+  'harmony',
   'tidyverse',
   'Seurat',
   'here'
 )
 
 bioc_packages <- c(
-  "UCell",
-  "SingleR",
-  "celldex",
-  "scran",
-  "scater"
+  'EnhancedVolcano'
 )
 
 github_packages <- c(
