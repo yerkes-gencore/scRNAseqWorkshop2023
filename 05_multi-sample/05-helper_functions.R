@@ -54,9 +54,9 @@ gcoreVlnPlot <- function(obj,
                                         levels = groups)
   mat_to_plot <- mat_to_plot %>%
     filter(.data[[grouping_var]] %in% groups)
-  
+
   if (filter_zeros) {mat_to_plot <- mat_to_plot %>% filter(.data[['value']] != 0)}
-  
+
   ggplot2::ggplot(mat_to_plot,
                   aes(x = .data[[grouping_var]],
                       y = .data[['value']],
@@ -169,7 +169,7 @@ plotRefMapScoresFacet <- function(obj,
                                   ncol = 3,
                                   n_font_size = 2.5,
                                   facet_order = NULL){
-  
+
   # Calculate proportion of calls in each cluster
   sample_sizes <- obj@meta.data %>%
     dplyr::select({{ clusters_column }}, {{ label_column }}, {{ label_score_column }}) %>%
@@ -177,12 +177,12 @@ plotRefMapScoresFacet <- function(obj,
     dplyr::summarise(n = n(), .groups = 'drop_last') %>%
     dplyr::mutate('freq' = .data[[ 'n' ]] / sum(.data[[ 'n' ]])) %>%
     dplyr::filter(.data[[ 'freq' ]] > min_proportion)
-  
+
   data <- obj@meta.data %>%
     dplyr::select({{ clusters_column }},
                   {{ label_column }},
                   {{ label_score_column }})
-  
+
   # Old, for median mapping scores, specific to Azimuth
   # med_map_scores <- data %>%
   #   dplyr::select(seurat_clusters, {{ mapping_score_column }}) %>%
@@ -191,11 +191,11 @@ plotRefMapScoresFacet <- function(obj,
   #   mutate(label = paste0('Cluster ', seurat_clusters, '\nMedian mapping score: ', round(med, 3)))
   # medmapscores <- as.character(med_map_scores$label)
   # names(medmapscores) <- as.character(med_map_scores$seurat_clusters)
-  
+
   plot_data <- merge(sample_sizes, data,
                      by = c(clusters_column, label_column),
                      all.x = TRUE)
-  
+
   ## Relevel annotation levels if provided
   plot_data[[clusters_column]] <-
     factor(plot_data[[clusters_column]],
@@ -203,7 +203,7 @@ plotRefMapScoresFacet <- function(obj,
              sort(unique(plot_data[[clusters_column]]), decreasing = FALSE)
            } else {
              facet_order})
-  
+
   ggplot2::ggplot(plot_data, aes(x = .data[[ label_column ]],
                                  y = .data[[ label_score_column ]],
                                  color = .data[[ label_column ]])) +

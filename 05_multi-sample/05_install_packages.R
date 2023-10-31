@@ -5,10 +5,12 @@ cran_packages <- c(
   'Seurat',
   'here',
   'ggforce'
+  'msigdbr'
 )
 
 bioc_packages <- c(
-  'EnhancedVolcano'
+  'EnhancedVolcano',
+  'fgsea'
 )
 
 github_packages <- c(
