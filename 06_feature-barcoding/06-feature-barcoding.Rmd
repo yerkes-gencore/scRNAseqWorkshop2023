@@ -1,0 +1,333 @@
+---
+title: "feature-barcoding-draft"
+author: "GKT"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 0 - Project Setup
+
+## Load packages
+
+```{r}
+#library(EnhancedVolcano)
+library(harmony)
+library(here)
+library(Seurat)
+library(tidyverse)
+library(celldex)
+library(SingleR)
+set.seed(43)
+source(here("06_feature-barcoding/06_helper_functions.R"))
+
+here::i_am("06_feature-barcoding/06-feature-barcoding.Rmd")
+```
+
+## Downloading the necessary files
+
+Make sure that you've downloaded a zip of the github repo https://github.com/yerkes-gencore/scRNAseqWorkshop2023 and unzip it somewhere on your computer (e.g. in your `Desktop` directory).
+
+If you want to keep working in the directory you created last class, simply copy and paste the `06_feature-processing` folder into the base level of your existing directory.
+
+If you'd like to start fresh in a clean working directory, you can simply work from the newly unzipped folder.
+
+*Note: If you are comfortable using git (beyond the scope of this workshop) and are already working within a local clone of the repo, you can skip the above and simply `git pull` the repo.*
+
+## Read in cellranger outputs with GEX and Antibody Capture
+
+```{r}
+
+# Read cellranger H5 file that has both gene expression and antibody capture tables
+counts06 <- Read10X_h5(here('Data/06_feature-barcoding/capture_3.h5'),)
+
+## counts06 <- Read10X(here('Data/06_feature-barcoding/capture_3_feature_bc_matrix'))
+
+# List of count tables
+names(counts06)
+
+# Feature ID's for Antibody Capture table
+rownames(counts06$`Antibody Capture`)
+
+# Remove uniqueness suffixes
+# explain uniqueness problem and why I'm removing the suffix
+rownames(counts06$`Antibody Capture`) <- str_remove(rownames(counts06$`Antibody Capture`),"[.][0-9]+")
+rownames(counts06$`Antibody Capture`)
+
+# Read feature_reference.csv
+adtFeatures <- read_csv(here("Data/06_feature-barcoding/capture_3_feature_reference.csv"),
+                        show_col_types = FALSE)
+# assign features to ADT or HTO
+adtFeatures <- mutate(adtFeatures, assay = if_else(str_starts(name,"Hash"),"HTO","ADT")) %>%
+  group_by(assay)
+adtFeatures
+
+# 
+featuresList <- group_split(adtFeatures)
+names(featuresList) <- group_keys(adtFeatures)[["assay"]]
+
+adtCounts <- counts06[["Antibody Capture"]][featuresList[["ADT"]][["name"]],]
+htoCounts <- counts06[["Antibody Capture"]][featuresList[["HTO"]][["name"]],]
+
+```
+
+## create Seurat Object
+
+```{r}
+
+# Create Seurat Object with Gene Expression counts
+obj <- CreateSeuratObject(counts = counts06[["Gene Expression"]])
+
+# Add Assays to Seurat Object for Antibody panel and hashing antibodies
+obj[["ADT"]] <- CreateAssayObject(counts = adtCounts)
+obj[["HTO"]] <- CreateAssayObject(counts = htoCounts)
+
+print(obj)
+
+```
+
+## GEX QC
+
+```{r}
+
+# Add number of genes per UMI for each cell to metadata
+obj$log10GenesPerUMI <- log10(obj$nFeature_RNA)/log10(obj$nCount_RNA)
+
+# Mitochondrial ratio
+obj$percent.mt <- PercentageFeatureSet(object = obj, pattern = "^MT")
+
+# Ribosomal ratio
+obj$percent.rb <- PercentageFeatureSet(object = obj, pattern = "^RP[SL]")
+
+cutoffs <- generate_capture_QC_cutoffs(obj, nmads = 5)
+
+obj$filtered <- 
+  !(obj$nCount_RNA >= cutoffs$nCount_RNA.min &
+    obj$nCount_RNA <= cutoffs$nCount_RNA.max &
+    obj$nFeature_RNA >= cutoffs$nFeature_RNA.min &
+    obj$nFeature_RNA <= cutoffs$nFeature_RNA.max &
+    obj$log10GenesPerUMI >= cutoffs$log10GenesPerUMI.min &
+    obj$log10GenesPerUMI <= cutoffs$log10GenesPerUMI.max &
+    obj$percent.mt >= cutoffs$percent.mt.min &
+    obj$percent.mt <= cutoffs$percent.mt.max &
+    obj$percent.rb >= cutoffs$percent.rb.min &
+    obj$percent.rb <= cutoffs$percent.rb.max)
+
+table(obj$filtered)
+
+```
+
+```{r fig.width=11}
+
+#Idents(obj) <- "orig.ident"
+VlnPlot(obj, features = c('nFeature_RNA', 'nCount_RNA', 'log10GenesPerUMI','percent.mt', 'percent.rb') ,pt.size = 0.1, split.by = "filtered", cols = c('black','orange'), ncol = 5) + RestoreLegend()
+
+ggplot(obj@meta.data, aes(x=nCount_RNA, y=nFeature_RNA, color=filtered)) +
+  geom_point(alpha=0.5) +
+  scale_color_manual(values = c('black', 'orange')) +
+  scale_x_log10() +
+  scale_y_log10() +
+  theme_classic()
+
+```
+
+
+## filter cells
+
+```{r}
+obj <- subset(obj, subset = filtered == FALSE)
+
+print(obj)
+
+```
+
+
+
+## HTO Demux
+
+```{r}
+
+obj <- NormalizeData(obj, assay = "HTO", normalization.method = "CLR", margin = 1)
+obj <- HTODemux(obj, assay = "HTO", positive.quantile = 0.99)
+
+table(obj$HTO_classification)
+
+```
+
+```{r}
+
+RidgePlot(obj, assay = "HTO", group.by = "HTO_maxID", idents = rownames(obj[["HTO"]]), features = rownames(obj[["HTO"]]), ncol = 2)
+
+RidgePlot(obj, assay = "HTO", features = rownames(obj[["HTO"]]), ncol = 2)
+
+FeatureScatter(obj, feature1 = "hto_Hash2", feature2 = "hto_Hash3")
+
+VlnPlot(obj, group.by = "HTO_classification.global", features = "nCount_RNA", pt.size = 0.1, log = TRUE)
+
+```
+
+
+## subset by Identified Hash
+
+```{r}
+
+obj <- subset(obj, subset = HTO_classification.global == "Singlet")
+
+print(obj)
+
+```
+
+## RNA clustering and integration
+
+```{r}
+
+DefaultAssay(obj) <- "RNA"
+
+obj <- NormalizeData(obj) %>%
+  ScaleData() %>%
+  FindVariableFeatures() %>%
+  RunPCA(npcs = 30, reduction.name = "rna_pca") %>%
+  FindNeighbors(dims = 1:30, reduction = "rna_pca", graph.name = c("rna_nn","rna_snn")) %>%
+  FindClusters(resolution = 0.5, graph.name = "rna_snn") %>%
+  RunUMAP(dims = 1:30, reduction = "rna_pca", reduction.name = "rna_umap")
+
+print(obj)
+
+```
+
+## SingleR Cell classification
+
+```{r}
+
+ref <- BlueprintEncodeData()
+
+singler_out <- SingleR(obj@assays$RNA@data, ref, labels = ref$label.main)
+
+obj$BP.main <- singler_out$pruned.labels
+
+```
+
+
+```{r}
+
+DimPlot(obj, reduction = "rna_umap", label = TRUE)
+DimPlot(obj, reduction = "rna_umap", group.by = "HTO_classification")
+DimPlot(obj, reduction = "rna_umap", group.by = "BP.main", label = TRUE) + NoLegend()
+
+```
+
+## Harmony RNA integration
+
+```{r}
+
+obj <- RunHarmony(obj, group.by.vars = "HTO_classification", reduction = "rna_pca", reduction.save = "rna_harmony")
+obj <- FindNeighbors(obj, assay = "RNA", reduction = "rna_harmony", graph.name = c("rna_harmony_nn","rna_harmony_snn"))
+obj <- FindClusters(obj, assay = "RNA", graph.name = "rna_harmony_snn", resolution = 0.8)
+obj <- RunUMAP(obj, reduction = "rna_harmony", reduction.name = "rna_harmony_umap", dims = 1:30)
+
+print(obj)
+
+```
+
+## Visualize RNA integration
+
+```{r}
+
+DimPlot(obj, reduction = "rna_harmony_umap", group.by = "rna_harmony_snn_res.0.8", label = TRUE) + NoLegend()
+DimPlot(obj, reduction = "rna_harmony_umap", group.by = "HTO_classification")
+DimPlot(obj, reduction = "rna_harmony_umap", group.by = "BP.main", label = TRUE) + NoLegend()
+
+```
+
+
+## ADT clustering
+
+```{r}
+
+VariableFeatures(obj, assay = "ADT") <- rownames(obj[["ADT"]])
+obj <- NormalizeData(obj, assay = "ADT", normalization.method = "CLR", margin = 2)
+obj <- ScaleData(obj, assay = "ADT")
+obj <- RunPCA(obj, assay = "ADT", npcs = 12, reduction.name = "adt_pca")
+obj <- FindNeighbors(obj, assay = "ADT", reduction = "adt_pca", graph.name = c("adt_nn","adt_snn"))
+obj <- FindClusters(obj, assay = "ADT", graph.name = "adt_snn", resolution = 0.8)
+obj <- RunUMAP(obj, assay = "ADT", reduction = "adt_pca", dims = 1:11, reduction.name = "adt_umap")
+
+```
+
+## Visualize ADT clustering
+
+```{r}
+
+DimPlot(obj, reduction = "adt_umap", label = TRUE)
+DimPlot(obj, reduction = "adt_umap", group.by = "HTO_classification")
+DimPlot(obj, reduction = "adt_umap", group.by = "BP.main", label = TRUE) + NoLegend()
+
+```
+
+## Harmony ADT integration
+
+```{r}
+
+obj <- RunHarmony(obj, group.by.vars = "HTO_classification", reduction = "adt_pca", reduction.save = "adt_harmony")
+obj <- FindNeighbors(obj, assay = "ADT", reduction = "adt_harmony", graph.name = c("adt_harmony_nn","adt_harmony_snn"))
+obj <- FindClusters(obj, assay = "ADT", graph.name = "adt_harmony_snn", resolution = 0.8)
+obj <- RunUMAP(obj, reduction = "adt_harmony", reduction.name = "adt_harmony_umap", dims = 1:11)
+
+```
+
+## Visualize ADT integration
+
+```{r}
+DimPlot(obj, reduction = "adt_harmony_umap", group.by = "adt_harmony_snn_res.0.8", label = TRUE) + NoLegend()
+DimPlot(obj, reduction = "adt_harmony_umap", group.by = "HTO_classification")
+DimPlot(obj, reduction = "adt_harmony_umap", group.by = "BP.main", label = TRUE) + NoLegend()
+```
+
+## Compare RNA and ADT Features
+
+```{r}
+
+DefaultAssay(obj) <- "RNA"
+FeaturePlot(obj, features = c("CD4"), reduction = "rna_harmony_umap")
+
+DefaultAssay(obj) <- "ADT"
+FeaturePlot(obj, features = c("CD4"), reduction = "rna_harmony_umap")
+
+DefaultAssay(obj) <- "RNA"
+
+VlnPlot(obj, features = c("CD4"), assay = "RNA", group.by = "rna_harmony_snn_res.0.8")
+VlnPlot(obj, features = c("CD4"), assay = "ADT", group.by = "rna_harmony_snn_res.0.8", pt.size = 0.1)
+VlnPlot(obj, features = c("CD4"), assay = "ADT", group.by = "adt_harmony_snn_res.0.8", pt.size = 0.1)
+
+```
+
+
+## WNN modal integration
+
+```{r}
+
+obj <- FindMultiModalNeighbors(obj, reduction.list = list("rna_harmony","adt_harmony"),
+                               dims.list = list(1:30,1:11),
+                               knn.graph.name = "wknn_harmony",
+                               snn.graph.name = "wsnn_harmony",
+                               weighted.nn.name = "weighted.nn_harmony",
+                               modality.weight.name = list("mmn.weight.rna_harmony","mmn.weight.adt_harmony"))
+obj <- FindClusters(obj, graph.name = "wsnn_harmony", resolution = 0.8)
+obj <- RunUMAP(obj, nn.name = "weighted.nn_harmony",
+               reduction.name = "wnn.umap.harmony",
+               reduction.key = "wnnUMAP.harmony_")
+
+```
+
+## Visualize WNN integration
+
+```{r fig.width=11}
+DimPlot(obj, reduction = "wnn.umap.harmony", group.by = "wsnn_harmony_res.0.8", label = TRUE)
+DimPlot(obj, reduction = "wnn.umap.harmony", group.by = "HTO_classification")
+DimPlot(obj, reduction = "wnn.umap.harmony", group.by = "BP.main", label = TRUE) + NoLegend()
+DotPlot(obj, assay = "ADT", features = rownames(obj[["ADT"]]), group.by = "wsnn_harmony_res.0.8", cluster.idents = TRUE)
+```
+
+
+
+
+
