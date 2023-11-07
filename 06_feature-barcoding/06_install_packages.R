@@ -4,12 +4,12 @@ cran_packages <- c(
   'tidyverse',
   'Seurat',
   'here',
-  'ggforce',
+  'ggforce'
 )
 
 bioc_packages <- c(
   "SingleR",
-  "celldex",
+  "celldex"
 )
 
 github_packages <- c(
