@@ -4,7 +4,8 @@ cran_packages <- c(
   'tidyverse',
   'Seurat',
   'here',
-  'ggforce'
+  'ggforce',
+  'hdf5r'
 )
 
 bioc_packages <- c(
