@@ -1,0 +1,222 @@
+---
+title: "Integrate VDJ with GEX analysis"
+output:
+  html_document: default
+  pdf_document: default
+date: "2023-11-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = FALSE)
+
+library(alakazam)
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(scoper)
+library(shazam)
+library(Seurat)
+library(SingleR)
+library(MAST)
+
+
+```
+
+
+## Read changeO file and remove non-productive sequences
+
+```{r filter_nonprod}
+
+data <- readChangeoDb('results/filtered_contig_igblast_db-pass.tsv')
+data <- data %>% filter(productive)
+
+cat(paste("There are", nrow(data), "rows in the data.\n"))
+data %>% slice_sample(n = 5) # random examples
+
+```
+
+
+## Get cells with one heavy and one light chain
+
+```{r filter_multi_chains}
+
+d <- as.data.frame.matrix(table(data$cell_id,data$locus))
+head(d)
+
+table(d$IGH)
+(table(d$IGH)/dim(d)[1])*100
+
+d$Light <- d$IGK + d$IGL
+table(d$Light)
+(table(d$Light)/dim(d)[1])*100
+
+single_chains_cells <- row.names(d[d$IGH==1 & d$Light ==1,] )
+
+data <- filter(data, cell_id %in% single_chains_cells)
+cat(paste("There are", nrow(data), "rows in the data after filtering out cells with multiple heavy chains.\n"))
+
+
+
+```
+
+## Clonal assignment using Immcantation
+
+```{r clone_immcantation}
+
+dist_nearest <- distToNearest(filter(data, locus == "IGH"), nproc = 1)
+
+# generate Hamming distance histogram
+p1 <- ggplot(subset(dist_nearest, !is.na(dist_nearest)),
+             aes(x = dist_nearest)) +
+  theme_bw() +
+  xlab("Hamming distance") + ylab("Count") +
+  scale_x_continuous(breaks = seq(0, 1, 0.1)) +
+  geom_histogram(color = "white", binwidth = 0.02) +
+  theme(axis.title = element_text(size = 18))
+plot(p1)
+
+
+threshold_output <- findThreshold(dist_nearest$dist_nearest,
+                                  method = "gmm", model = "gamma-norm",
+                                  cutoff = "user", spc = 0.995)
+threshold <- threshold_output@threshold
+threshold
+
+results <- hierarchicalClones(data, cell_id = 'cell_id',
+                              threshold = threshold, only_heavy = FALSE,
+                              split_light = TRUE, summarize_clones = FALSE)
+
+plot(threshold_output, binwidth = 0.02, silent = T) +
+  theme(axis.title = element_text(size = 18))
+
+```
+
+## Clonal assignment - Custom script
+
+```{r clone_custom}
+
+heavy <- data[data$locus == "IGH",]
+light <- data[data$locus != "IGH",]
+
+paired <- merge(heavy,light,by="cell_id")
+
+# Clonal assignment custom script
+
+source("Clonal_assignment.R")
+paired_clones <- get_clonotype(paired,0.7)
+
+vdj_metadata <- paired_clones[,c("CloneID","cell_id","v_call.x","j_call.x","c_call.x","v_call.y","j_call.y","c_call.y","v_identity.x")]
+
+```
+
+
+## Read GEX counts
+
+```{r gex}
+
+counts <- Read10X_h5("Y:/genomelab/illumina/runs/Analysis_BLab/VDJ_Class/input/10k_PBMC_TBNK_cellranger_out/outs/per_sample_outs/10k_PBMC_TBNK_cellranger_out/count/sample_feature_bc_matrix.h5")
+
+gex_counts <- counts$`Gene Expression`
+
+dim(gex_counts)
+
+# Remove IG genes
+
+ig_genes <- row.names(gex_counts)[grepl("^IG[H,K,L][V,D,J]|IGKC|IGLC|IGH[G,M,A,D,E]",row.names(gex_counts))]
+
+gex_counts_noIG <- gex_counts[!row.names(gex_counts) %in% ig_genes,]
+
+dim(gex_counts_noIG)
+
+```
+
+```{r GEx with IG genes}
+
+# Create seurat object and perform clustering
+
+pbmc <- CreateSeuratObject(counts=gex_counts)
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
+VlnPlot(pbmc, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 4000 & percent.mt < 10)
+pbmc <- NormalizeData(pbmc)
+pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
+all.genes <- rownames(pbmc)
+pbmc <- ScaleData(pbmc, features = all.genes)
+pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
+ElbowPlot(pbmc)
+pbmc <- RunUMAP(pbmc, dims = 1:10)
+pbmc <- FindNeighbors(pbmc, dims = 1:10)
+pbmc <- FindClusters(pbmc, resolution = 0.5)
+DimPlot(pbmc, group.by = "seurat_clusters", label = T)
+
+
+# Annotate cells using SingleR
+
+ref <- BlueprintEncodeData()
+DefaultAssay(pbmc) <- "RNA"
+normdata <- GetAssayData(pbmc, assay="RNA", slot = "data")
+common <- intersect(row.names(normdata),row.names(ref))
+normdata <- normdata[common,]
+ref <- ref[common,]
+
+bp.main <- SingleR(test = normdata, ref = ref,
+                   labels = ref$label.main, assay.type.ref = "logcounts")
+
+pbmc[["BP.main"]] <- bp.main$labels
+
+DimPlot(pbmc, group.by = "BP.main", label = T)
+
+# Add VDJ 
+
+row.names(vdj_metadata) <- vdj_metadata$cell_id
+pbmc <- AddMetaData(pbmc, vdj_metadata)
+
+DimPlot(pbmc, group.by = "c_call.x")
+
+# Subset B cells
+
+pbmc_bcells <- subset(pbmc, cells = row.names(pbmc@meta.data[pbmc$seurat_clusters == "8",]))
+pbmc_bcells <- NormalizeData(pbmc_bcells)
+pbmc_bcells <- FindVariableFeatures(pbmc_bcells, selection.method = "vst", nfeatures = 2000)
+all.genes <- rownames(pbmc_bcells)
+pbmc_bcells <- ScaleData(pbmc_bcells, features = all.genes)
+pbmc_bcells <- RunPCA(pbmc_bcells, features = VariableFeatures(object = pbmc_bcells))
+ElbowPlot(pbmc_bcells)
+pbmc_bcells <- RunUMAP(pbmc_bcells, dims = 1:10)
+pbmc_bcells <- FindNeighbors(pbmc_bcells, dims = 1:10)
+pbmc_bcells <- FindClusters(pbmc_bcells, resolution = 0.1)
+
+# UMAP of B cells colored by seurat_clusters
+DimPlot(pbmc_bcells,group.by="seurat_clusters", label = T)
+
+markers <- FindAllMarkers(pbmc_bcells,test.use = "MAST", only.pos = T)
+head(markers)
+markers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC > 1) %>%
+    slice_head(n = 10) %>%
+    ungroup() -> top10
+DoHeatmap(pbmc_bcells, features = top10$gene)
+FeaturePlot(pbmc_bcells, features = c("CD79A","CD3E")) + NoLegend()
+
+
+# UMAP color by Isotype
+DimPlot(pbmc_bcells,group.by="c_call.x")
+
+
+# UMAP of expanded cells
+
+clone_freq <- as.data.frame(table(pbmc_bcells$CloneID))
+expanded <- as.character(clone_freq[clone_freq$Freq>1,]$Var1)
+
+pbmc_bcells$Clonal <- "single"
+pbmc_bcells$Clonal[pbmc_bcells$CloneID %in% expanded] <- "expanded"
+
+DimPlot(pbmc_bcells,group.by="Clonal", cols = c("red","gray") )
+
+Idents(pbmc_bcells) <- "c_call.x"
+VlnPlot(pbmc_bcells,"v_identity.x")
+
+
+```
+
